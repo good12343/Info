@@ -1,4 +1,4 @@
-import { hashLeaf } from "../engine/hash.service";
+import { hashLeaf } from "../merkle/hash.service";
 
 export const generateProof = (wallet: string, amount: number) => {
   const leaf = hashLeaf(wallet, amount);

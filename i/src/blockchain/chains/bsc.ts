@@ -3,11 +3,20 @@ import { ethers } from "ethers";
 import { ChainAdapter } from "./base";
 import AirdropABI from "../../abis/Airdrop.json";
 
-const provider = new ethers.JsonRpcProvider(process.env.BSC_RPC);
-const wallet = new ethers.Wallet(process.env.PRIVATE_KEY!, provider);
+// 🔐 حماية env
+const RPC = process.env.BSC_RPC;
+const PRIVATE_KEY = process.env.PRIVATE_KEY;
 
+if (!RPC) throw new Error("BSC_RPC is missing");
+if (!PRIVATE_KEY) throw new Error("PRIVATE_KEY is missing");
+
+// Provider + Wallet
+const provider = new ethers.JsonRpcProvider(RPC);
+const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
+
+// Contract instance (🔴 FIX هنا)
 const contract = new ethers.Contract(
-  process.env.BSC_AIRDROP!,
+  contracts.bsc.airdrop,
   AirdropABI,
   wallet
 );
