@@ -1,0 +1,28 @@
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+
+}
+
+model User {
+  wallet            String   @id
+
+  totalBought       Int      @default(0)
+  airdropPoints     Int      @default(0)
+  tokensAllocated   Int      @default(0)
+
+  vestedTokens      Int      @default(0)
+  claimableTokens   Int      @default(0)
+
+  isEligible        Boolean  @default(false)
+  isBlocked         Boolean  @default(false)
+
+  sources           Json?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
