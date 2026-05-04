@@ -1,28 +1,88 @@
-// prisma/schema.prisma
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
-
+  url      = env("DATABASE_URL")
 }
+
+//////////////////////////////////////////////////////
+// 👤 USER CORE (State Layer)
+//////////////////////////////////////////////////////
 
 model User {
   wallet            String   @id
 
+  // 📊 Financial state
   totalBought       Int      @default(0)
   airdropPoints     Int      @default(0)
   tokensAllocated   Int      @default(0)
-
   vestedTokens      Int      @default(0)
   claimableTokens   Int      @default(0)
 
+  // 🔐 Business rules
   isEligible        Boolean  @default(false)
   isBlocked         Boolean  @default(false)
 
+  // 🌍 GLOBAL CLAIM STATE (important)
+  hasClaimed        Boolean  @default(false)
+  claimedAt         DateTime?
+  lastClaimChain    String?
+  claimTxHash       String?
+
+  // 🧠 Risk / Anti-sybil (light layer)
+  riskScore         Float    @default(0)
+  ipAddress         String?
+  deviceFingerprint String?
+
+  // 📦 extra flexible metadata
   sources           Json?
 
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
+
+  @@index([isEligible])
+  @@index([hasClaimed])
+  @@index([isBlocked])
+}
+
+//////////////////////////////////////////////////////
+// 📜 AUDIT LOG (Event Tracking Layer)
+//////////////////////////////////////////////////////
+
+model AuditLog {
+  id        String   @id @default(uuid())
+
+  action    String   // CLAIM, SET_ROOT, BLOCK_USER, etc
+  userId    String?
+  txHash    String?
+  ip        String?
+
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+}
+
+//////////////////////////////////////////////////////
+// 🛡️ SYBIL PROTECTION (Security Layer)
+//////////////////////////////////////////////////////
+
+model SybilCheck {
+  id          String   @id @default(uuid())
+
+  userId      String
+  fingerprint String?
+  ipAddress   String?
+
+  claimCount  Int      @default(0)
+  riskScore   Float    @default(0)
+  blocked     Boolean  @default(false)
+
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([fingerprint])
 }
