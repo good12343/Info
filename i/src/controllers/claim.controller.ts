@@ -12,17 +12,11 @@ export const claim = async (req: Request, res: Response) => {
     const selectedChain = getChain(chain);
 
     // 2. تمريرها إلى الـ service
-    const result = await claimService(
-      wallet,
-      amount,
-      proof,
-      req.ip,
-      selectedChain
-    );
+    const result = await claimService.processClaim(wallet, req.ip);
 
     res.json({
       success: true,
-      txHash: result.transactionHash,
+      txHash: result.txHash,
     });
 
   } catch (err: any) {
@@ -32,3 +26,4 @@ export const claim = async (req: Request, res: Response) => {
     });
   }
 };
+export const claimController = { claim };

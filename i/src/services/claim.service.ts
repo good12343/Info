@@ -95,3 +95,4 @@ export const processClaim = async (
     };
   }
 };
+export const claimService = { processClaim };
