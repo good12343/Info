@@ -1,6 +1,6 @@
 import { ethers } from "ethers";
 import { ChainAdapter } from "./base";
-import AirdropABI from "../abis/Airdrop.json";
+import AirdropABI from "../../abis/Airdrop.json";
 
 const provider = new ethers.JsonRpcProvider(process.env.SOMI_RPC);
 const wallet = new ethers.Wallet(process.env.PRIVATE_KEY!, provider);

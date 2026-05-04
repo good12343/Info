@@ -1,0 +1,100 @@
+[
+  {
+    "inputs": [
+      { "internalType": "address", "name": "_token", "type": "address" },
+      { "internalType": "address", "name": "_timelock", "type": "address" }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "name": "claim",
+    "type": "function",
+    "stateMutability": "nonpayable",
+    "inputs": [
+      { "internalType": "uint256", "name": "amount", "type": "uint256" },
+      { "internalType": "bytes32[]", "name": "proof", "type": "bytes32[]" }
+    ],
+    "outputs": []
+  },
+  {
+    "name": "deactivate",
+    "type": "function",
+    "stateMutability": "nonpayable",
+    "inputs": [],
+    "outputs": []
+  },
+  {
+    "name": "finalize",
+    "type": "function",
+    "stateMutability": "nonpayable",
+    "inputs": [],
+    "outputs": []
+  },
+  {
+    "name": "withdrawRemaining",
+    "type": "function",
+    "stateMutability": "nonpayable",
+    "inputs": [],
+    "outputs": []
+  },
+  {
+    "name": "setMerkleRoot",
+    "type": "function",
+    "stateMutability": "nonpayable",
+    "inputs": [
+      { "internalType": "bytes32", "name": "_root", "type": "bytes32" },
+      { "internalType": "uint256", "name": "_deadline", "type": "uint256" }
+    ],
+    "outputs": []
+  },
+
+  {
+    "name": "getInfo",
+    "type": "function",
+    "stateMutability": "view",
+    "inputs": [],
+    "outputs": [
+      { "internalType": "bool", "name": "active", "type": "bool" },
+      { "internalType": "bool", "name": "_finalized", "type": "bool" },
+      { "internalType": "uint256", "name": "_deadline", "type": "uint256" },
+      { "internalType": "uint256", "name": "remaining", "type": "uint256" },
+      { "internalType": "uint256", "name": "claimed", "type": "uint256" },
+      { "internalType": "uint256", "name": "timeLeft", "type": "uint256" }
+    ]
+  },
+
+  {
+    "name": "hasUserClaimed",
+    "type": "function",
+    "stateMutability": "view",
+    "inputs": [
+      { "internalType": "address", "name": "user", "type": "address" }
+    ],
+    "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }]
+  },
+
+  {
+    "name": "merkleRoot",
+    "type": "function",
+    "stateMutability": "view",
+    "inputs": [],
+    "outputs": [{ "internalType": "bytes32", "name": "", "type": "bytes32" }]
+  },
+
+  {
+    "name": "token",
+    "type": "function",
+    "stateMutability": "view",
+    "inputs": [],
+    "outputs": [{ "internalType": "address", "name": "", "type": "address" }]
+  },
+
+  {
+    "name": "timelock",
+    "type": "function",
+    "stateMutability": "view",
+    "inputs": [],
+    "outputs": [{ "internalType": "address", "name": "", "type": "address" }]
+  }
+]
