@@ -3,12 +3,11 @@ import { wallet } from "./provider";
 import VestingABI from "../abis/Vesting.json";
 import { contracts } from "../config/contracts";
 
-export function getVestingContract(chain: "somi" | "eth" | "bsc") {
-  const address = contracts[chain].vesting;
+// اختر الشبكة هنا أو لاحقًا من parameter
+const chain = "somi";
 
-  if (!address) {
-    throw new Error(`Vesting address missing for ${chain}`);
-  }
-
-  return new ethers.Contract(address, VestingABI, wallet);
-}
+export const vestingContract = new ethers.Contract(
+  contracts[chain].vesting,
+  VestingABI,
+  wallet
+);
