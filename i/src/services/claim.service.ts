@@ -4,10 +4,25 @@ import { airdropContract } from "../blockchain/airdrop.contract";
 import { vestingContract } from "../blockchain/vesting.contract";
 
 export const processClaim = async (wallet: string) => {
+
+  if (FEATURES.EMERGENCY_PAUSE) {
+  throw new Error("System paused");
+}
+
   // 1. جلب المستخدم
   const user = await prisma.user.findUnique({
     where: { wallet },
   });
+
+const check = AirdropValidator.validate({
+  user,
+  proof,
+  expired: false,
+  });
+
+if (!check.valid) {
+  throw new Error(check.reason!);
+}
 
   if (!user) {
     return { status: "error", message: "User not found" };
@@ -29,6 +44,13 @@ export const processClaim = async (wallet: string) => {
     );
 
     await tx.wait();
+
+    await logAction({
+    action: "CLAIM",
+    userId: wallet,
+    txHash: tx.hash,
+    ip: req.ip,
+    });
 
     // 4. إذا عندك vesting
     if (user.totalBought > 0) {

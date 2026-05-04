@@ -9,6 +9,7 @@ app.use(express.json());
 // 👇 هنا ربط الـ route
 app.use("/claim", claimRoute);
 
+
 app.listen(3000, () => {
   console.log("Brain running on port 3000...");
 });

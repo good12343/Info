@@ -1,10 +1,34 @@
+// src/controllers/claim.controller.ts
+
 import { Request, Response } from "express";
-import { processClaim } from "../services/claim.service";
+import { getChain } from "../blockchain/factory";
+import { claimService } from "../services/claim.service";
 
-export const claimController = async (req: Request, res: Response) => {
-  const { wallet } = req.body;
+export const claim = async (req: Request, res: Response) => {
+  try {
+    const { wallet, amount, proof, chain } = req.body;
 
-  const result = await processClaim(wallet);
+    // 1. اختيار الشبكة 👇 (هنا بالضبط)
+    const selectedChain = getChain(chain);
 
-  res.json(result);
+    // 2. تمريرها إلى الـ service
+    const result = await claimService(
+      wallet,
+      amount,
+      proof,
+      req.ip,
+      selectedChain
+    );
+
+    res.json({
+      success: true,
+      txHash: result.transactionHash,
+    });
+
+  } catch (err: any) {
+    res.status(500).json({
+      success: false,
+      error: err.message,
+    });
+  }
 };
