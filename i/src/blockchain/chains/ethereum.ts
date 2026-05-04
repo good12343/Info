@@ -13,8 +13,8 @@ const contract = new ethers.Contract(
 );
 
 export class EthereumAdapter implements ChainAdapter {
-  async claim(walletAddr: string, amount: number, proof: string[]) {
-    const tx = await contract.claim(walletAddr, amount, proof);
+  async claim(amount: number, proof: string[]) {
+    const tx = await contract.claim(amount, proof);
     return await tx.wait();
   }
 }
