@@ -1,17 +1,14 @@
 export const contracts = {
-  somi: {
-    token: "0x5FbDB2315678afecb367f032d93F642f64180aa3",
-    airdrop: "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0",
-    vesting: "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
+  sepolia: {
+    chainId: 11155111,
+    name: "Sepolia",
+    rpc: process.env.SEPOLIA_RPC || "https://rpc.sepolia.org",
+    token: process.env.TOKEN_ADDRESS || "0x0000000000000000000000000000000000000000",
+    airdrop: process.env.AIRDROP_ADDRESS || "0x0000000000000000000000000000000000000000",
+    vesting: process.env.VESTING_ADDRESS || "0x0000000000000000000000000000000000000000",
+    priceOracle: process.env.PRICE_ORACLE_ADDRESS || "0x0000000000000000000000000000000000000000",
   },
-  eth: {
-    token: "0x5FbDB2315678afecb367f032d93F642f64180aa2",
-    airdrop: "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e5",
-    vesting: "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0511",
-  },
-  bsc: {
-    token: "0x5FbDB2315678afecb367f032d93F642f64180aa1",
-    airdrop: "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e3",
-    vesting: "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0514",
-  }
-};
+} as const;
+
+export type ChainKey = keyof typeof contracts;
+export const DEFAULT_CHAIN: ChainKey = "sepolia";

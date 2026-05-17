@@ -1,98 +1,69 @@
 import { prisma } from "../db/prisma";
-import { generateProof } from "./merkle.service";
-import { airdropContract } from "../blockchain/airdrop.contract";
-import { vestingContract } from "../blockchain/vesting.contract";
-import { FEATURES } from "../config/features";
-import { AirdropValidator } from "../engine/validation";
-import { logAction } from "./audit.service";
+import { airdropContractRead } from "../blockchain/airdrop.contract";
 
-export const processClaim = async (
-  wallet: string,
-  ip?: string
-) => {
+const CHAIN_ID = 11155111;
 
-  // 1. 🔴 Emergency pause (أول شيء)
-  if (FEATURES.EMERGENCY_PAUSE) {
-    throw new Error("System paused");
-  }
-
-  // 2. جلب المستخدم
-  const user = await prisma.user.findUnique({
-    where: { wallet },
-  });
-
-  if (!user) {
-    return { status: "error", message: "User not found" };
-  }
-
-  // 3. 🔴 Global claim check (مهم جدًا)
-  if (user.hasClaimed) {
-    throw new Error("Already claimed globally");
-  }
-
-  if (user.tokensAllocated <= 0) {
-    return { status: "error", message: "No tokens to claim" };
-  }
-
-  // 4. توليد proof
-  const proof = generateProof(wallet, user.tokensAllocated);
-
-  // 5. validation
-  const check = AirdropValidator.validate({
-    user,
-    proof,
-    expired: false,
-  });
-
-  if (!check.valid) {
-    throw new Error(check.reason!);
-  }
-
+/**
+ * Verify a claim transaction on blockchain
+ */
+export const verifyClaim = async (wallet: string, txHash: string) => {
   try {
-
-    // 6. 🔗 blockchain claim
-    const tx = await airdropContract.claim(
-      wallet,
-      user.tokensAllocated,
-      proof
-    );
-
-    await tx.wait();
-
-    // 7. vesting (اختياري)
-    if (user.totalBought > 0) {
-      await vestingContract.lock(wallet, user.tokensAllocated);
+    // Get receipt
+    const provider = airdropContractRead.runner?.provider;
+    if (!provider) {
+      return { verified: false, error: "Provider not available" };
     }
 
-    // 8. تحديث DB (GLOBAL STATE)
-    await prisma.user.update({
-      where: { wallet },
-      data: {
-        hasClaimed: true,
-        claimedAt: new Date(),
-        tokensAllocated: 0,
-        vestedTokens: user.tokensAllocated,
-      },
-    });
+    const receipt = await provider.getTransactionReceipt(txHash);
+    if (!receipt) {
+      return { verified: false, error: "Transaction not found" };
+    }
 
-    // 9. audit log
-    await logAction({
-      action: "CLAIM",
-      userId: wallet,
-      txHash: tx.hash,
-      ip,
-    });
+    if (receipt.status !== 1) {
+      return { verified: false, error: "Transaction failed" };
+    }
 
+    // Check if user has claimed on chain
+    const claimed = await airdropContractRead.claimed(wallet.toLowerCase());
+    
     return {
-      status: "success",
-      txHash: tx.hash,
+      verified: true,
+      claimed,
+      blockNumber: receipt.blockNumber,
+      gasUsed: receipt.gasUsed.toString(),
     };
-
-  } catch (err: any) {
-    return {
-      status: "error",
-      message: err.message,
-    };
+  } catch (error) {
+    console.error("Verify claim error:", error);
+    return { verified: false, error: "Verification failed" };
   }
 };
-export const claimService = { processClaim };
+
+/**
+ * Get claim statistics
+ */
+export const getClaimStats = async () => {
+  const [
+    totalEligible,
+    totalClaimed,
+    totalAllocated,
+    recentClaims,
+  ] = await Promise.all([
+    prisma.user.count({ where: { isEligible: true } }),
+    prisma.user.count({ where: { hasClaimed: true } }),
+    prisma.user.aggregate({
+      where: { isEligible: true },
+      _sum: { tokensAllocated: true },
+    }),
+    prisma.auditLog.count({
+      where: { action: "CLAIM", createdAt: { gte: new Date(Date.now() - 86400000) } },
+    }),
+  ]);
+
+  return {
+    totalEligible,
+    totalClaimed,
+    totalAllocated: totalAllocated._sum?.tokensAllocated || "0",
+    claimRate: totalEligible > 0 ? (totalClaimed / totalEligible) * 100 : 0,
+    recentClaims24h: recentClaims,
+  };
+};

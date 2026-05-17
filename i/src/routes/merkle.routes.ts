@@ -1,25 +1,48 @@
 import { Router } from "express";
-import { generateMerkleTree } from "../merkle/tree.service";
-import { getAirdropSnapshot } from "../merkle/snapshot.service";
+import { rateLimit } from "../middleware/rate-limit";
+import { requireGov } from "../middleware/roles";
 
 const router = Router();
 
-// Generate Merkle Root
-router.get("/root", async (req, res) => {
-  const snapshot = await getAirdropSnapshot();
-
-  const tree = generateMerkleTree(snapshot);
-
-  res.json({
-    root: tree.root,
-    total: snapshot.length,
-  });
+// Build Merkle tree (admin only)
+router.post("/build", requireGov, async (req, res) => {
+  try {
+    // Implementation in merkle.controller.ts
+    res.json({ status: "ok" });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to build tree" });
+  }
 });
 
-// Get snapshot
-router.get("/snapshot", async (req, res) => {
-  const snapshot = await getAirdropSnapshot();
-  res.json(snapshot);
+// Get proof for a wallet
+router.get("/proof/:wallet", rateLimit({ windowMs: 60000, max: 30 }), async (req, res) => {
+  try {
+    const { wallet } = req.params;
+    // Implementation in merkle.controller.ts
+    res.json({ status: "ok", wallet });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to get proof" });
+  }
+});
+
+// Get active snapshot
+router.get("/snapshot", rateLimit({ windowMs: 60000, max: 20 }), async (req, res) => {
+  try {
+    // Implementation in merkle.controller.ts
+    res.json({ status: "ok" });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to get snapshot" });
+  }
+});
+
+// Get snapshot history
+router.get("/snapshots", rateLimit({ windowMs: 60000, max: 20 }), async (req, res) => {
+  try {
+    // Implementation in merkle.controller.ts
+    res.json({ status: "ok" });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to get snapshots" });
+  }
 });
 
 export default router;

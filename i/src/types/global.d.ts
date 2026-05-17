@@ -10,30 +10,33 @@ declare global {
       wallet?: string;
       userId?: string;
       ipAddress?: string;
-      chain?: "somi" | "ethereum" | "bsc";
+      chain?: "sepolia";  // Sepolia only
     }
   }
 
-  // 🌐 Supported chains
-  type ChainName = "somi" | "ethereum" | "bsc";
+  // 🌐 Supported chains - Sepolia only
+  type ChainName = "sepolia";
 
   // 📦 Claim request type
   interface ClaimRequest {
     wallet: string;
-    amount: number;
+    amount: string;        // BigInt as string
     proof: string[];
     chain: ChainName;
+    chainId: 11155111;     // Sepolia chain ID
   }
 
   // 🧠 Airdrop validation result
   interface ValidationResult {
     valid: boolean;
     reason?: string | null;
+    category?: "AIRDROP_ONLY" | "AIRDROP_BUYER" | "BUYER_ONLY" | "NONE";
+    tier?: "BRONZE" | "SILVER" | "GOLD" | "PLATINUM";
   }
 
   // ⛓️ Chain adapter interface
   interface ChainAdapter {
-    claim(wallet: string, amount: number, proof: string[]): Promise<any>;
+    claim(wallet: string, amount: string, proof: string[]): Promise<any>;
   }
 
   // 📊 Audit action types
@@ -42,7 +45,10 @@ declare global {
     | "SET_ROOT"
     | "BLOCK_USER"
     | "UNBLOCK_USER"
-    | "EMERGENCY_PAUSE";
+    | "EMERGENCY_PAUSE"
+    | "PURCHASE"
+    | "CLASSIFY_USER"
+    | "BUILD_TREE";
 }
 
 export {};

@@ -1,15 +1,11 @@
-import express from "express";
-import "dotenv/config";
-import claimRoute from "./routes/claim.routes";
+import app from "./app";
 
-const app = express();
+const PORT = process.env.PORT || 3001;
 
-app.use(express.json());
-
-// 👇 هنا ربط الـ route
-app.use("/claim", claimRoute);
-
-
-app.listen(3000, () => {
-  console.log("Brain running on port 3000...");
+app.listen(PORT, () => {
+  console.log("🚀 FOR Token Backend Server");
+  console.log(`📡 Port: ${PORT}`);
+  console.log(`⛓️  Chain: Sepolia (11155111)`);
+  console.log(`🔗 RPC: ${process.env.SEPOLIA_RPC || "https://rpc.sepolia.org"}`);
+  console.log("✅ Server ready!");
 });

@@ -1,8 +1,16 @@
 import { ethers } from "ethers";
+import { contracts, DEFAULT_CHAIN } from "../config/contracts";
 
-export const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
+const chain = DEFAULT_CHAIN;
+const config = contracts[chain];
 
-export const wallet = new ethers.Wallet(
-  process.env.PRIVATE_KEY!,
-  provider
-);
+// Provider for read operations
+export const provider = new ethers.JsonRpcProvider(config.rpc);
+
+// Signer for write operations (admin wallet)
+const privateKey = process.env.ADMIN_PRIVATE_KEY;
+export const wallet = privateKey 
+  ? new ethers.Wallet(privateKey, provider)
+  : null;
+
+export { chain, config };

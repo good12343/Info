@@ -1,20 +1,22 @@
 import { ethers } from "ethers";
-import { contracts } from "../../config/contracts";
-import { ChainAdapter } from "./base";
-import AirdropABI from "../../abis/Airdrop.json";
 
-const provider = new ethers.JsonRpcProvider(process.env.ETH_RPC);
-const wallet = new ethers.Wallet(process.env.PRIVATE_KEY!, provider);
+export const SEPOLIA_CONFIG = {
+  chainId: 11155111,
+  name: "Sepolia",
+  rpcUrl: process.env.SEPOLIA_RPC || "https://rpc.sepolia.org",
+  explorer: "https://sepolia.etherscan.io",
+  nativeCurrency: {
+    name: "Sepolia Ether",
+    symbol: "ETH",
+    decimals: 18,
+  },
+};
 
-const contract = new ethers.Contract(
-  contracts.eth.airdrop, // تأكد أنه موجود في contracts.ts
-  AirdropABI,
-  wallet
-);
+export const getSepoliaProvider = () => {
+  return new ethers.JsonRpcProvider(SEPOLIA_CONFIG.rpcUrl);
+};
 
-export class EthereumAdapter implements ChainAdapter {
-  async claim(amount: number, proof: string[]) {
-    const tx = await contract.claim(amount, proof);
-    return await tx.wait();
-  }
-}
+export const getSepoliaWallet = (privateKey: string) => {
+  const provider = getSepoliaProvider();
+  return new ethers.Wallet(privateKey, provider);
+};

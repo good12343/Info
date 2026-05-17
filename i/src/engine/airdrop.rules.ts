@@ -1,15 +1,22 @@
 import { airdropConfig } from "./airdrop.config";
 
-export const calculateAirdrop = (input: {
+interface AirdropInput {
   wallet: string;
   points: number;
   totalBought?: number;
-}) => {
-  const { points, totalBought = 0 } = input;
+}
 
+interface AirdropResult {
+  approved: boolean;
+  tokens: number;
+  reason?: string;
+}
+
+export const calculateAirdrop = (input: AirdropInput): AirdropResult => {
+  const { points, totalBought = 0 } = input;
   const cfg = airdropConfig;
 
-  // ❗ Rule check (data-driven)
+  // Rule checks
   if (points < cfg.rules.minPoints) {
     return { approved: false, tokens: 0, reason: "Too few points" };
   }
@@ -18,16 +25,9 @@ export const calculateAirdrop = (input: {
     return { approved: false, tokens: 0, reason: "Abuse detected" };
   }
 
-  // 🧠 multiplier (config-based)
-  const multiplier =
-    totalBought > 0
-      ? cfg.multipliers.hasBought
-      : cfg.multipliers.default;
-
+  // Multiplier logic
+  const multiplier = totalBought > 0 ? cfg.multipliers.hasBought : cfg.multipliers.default;
   const tokens = Math.floor((points / cfg.baseRate) * multiplier);
 
-  return {
-    approved: true,
-    tokens,
-  };
+  return { approved: true, tokens };
 };

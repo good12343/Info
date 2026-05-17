@@ -1,29 +1,64 @@
+import { MerkleTree } from "merkletreejs";
+import keccak256 from "keccak256";
+import { ethers } from "ethers";
 import { hashLeaf } from "./hash.service";
 
-export const buildMerkleTree = (data: { wallet: string; amount: number }[]) => {
-  let level = data.map((u) => hashLeaf(u.wallet, u.amount));
+interface AirdropEntry {
+  wallet: string;
+  amount: string | number | bigint;
+  chainId?: number;
+}
 
-  if (level.length === 0) return null;
+export interface MerkleTreeResult {
+  root: string;
+  tree: MerkleTree;
+  leaves: { wallet: string; amount: string; leaf: string }[];
+}
 
-  while (level.length > 1) {
-    const nextLevel: string[] = [];
+/**
+ * Build a Merkle tree from airdrop entries
+ * Matches Airdrop.sol logic exactly
+ */
+export const buildMerkleTree = (data: AirdropEntry[], chainId: number = 11155111): MerkleTreeResult | null => {
+  if (data.length === 0) return null;
 
-    for (let i = 0; i < level.length; i += 2) {
-      if (i + 1 === level.length) {
-        nextLevel.push(level[i]);
-      } else {
-        const combined = level[i] + level[i + 1];
-        nextLevel.push(
-          hashLeaf(combined, 0) // re-hash combined
-        );
-      }
-    }
+  const leaves = data.map((entry) => {
+    const leaf = hashLeaf(entry.wallet, entry.amount, chainId);
+    return {
+      wallet: entry.wallet,
+      amount: BigInt(entry.amount).toString(),
+      leaf,
+    };
+  });
 
-    level = nextLevel;
-  }
+  const leafHashes = leaves.map((l) => Buffer.from(l.leaf.slice(2), "hex"));
+  
+  const tree = new MerkleTree(leafHashes, keccak256, {
+    sortPairs: true,
+    hashLeaves: false, // We already hash leaves
+  });
+
+  const root = "0x" + tree.getRoot().toString("hex");
 
   return {
-    root: level[0],
-    leaves: data,
+    root,
+    tree,
+    leaves,
   };
+};
+
+/**
+ * Verify a Merkle proof
+ */
+export const verifyProof = (
+  root: string,
+  leaf: string,
+  proof: string[]
+): boolean => {
+  const leafBuffer = Buffer.from(leaf.slice(2), "hex");
+  const proofBuffers = proof.map((p) => Buffer.from(p.slice(2), "hex"));
+  
+  return MerkleTree.verify(proofBuffers, leafBuffer, Buffer.from(root.slice(2), "hex"), keccak256, {
+    sortPairs: true,
+  });
 };
