@@ -1,0 +1,127 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+//////////////////////////////////////////////////////
+// 👤 USER TYPES & ENUMS
+//////////////////////////////////////////////////////
+
+enum UserCategory {
+  AIRDROP_ONLY      // 🪂 حصل على Airdrop فقط
+  BUYER_ONLY        // 🛒 اشترى فقط
+  AIRDROP_BUYER     // 🪂🛒 حصل على الأمرين
+  NONE              // ❌ لا شيء
+}
+
+enum UserTier {
+  BRONZE
+  SILVER
+  GOLD
+  PLATINUM
+}
+
+//////////////////////////////////////////////////////
+// 👤 USER CORE
+//////////////////////////////////////////////////////
+
+model User {
+  wallet            String       @id
+  category          UserCategory @default(NONE)
+  tier              UserTier     @default(BRONZE)
+  
+  // 📊 Airdrop State
+  airdropPoints     Int          @default(0)     // النقاط المنجزة
+  airdropAllocated  Decimal      @default(0)     // التوكنز المستحقة (Points / 10)
+  hasClaimedAirdrop Boolean      @default(false)
+  airdropClaimedAt  DateTime?
+  airdropTxHash     String?
+  
+  // 🛒 Purchase State
+  totalBoughtUsd    Decimal      @default(0)
+  purchaseCount     Int          @default(0)
+  hasClaimedTokens  Boolean      @default(false) // هل طالب بتوكنز المشتريات
+  tokensClaimedAt   DateTime?
+  tokensClaimTxHash String?
+  
+  // 🌳 Merkle Tree (For Airdrop)
+  merkleProof       String[]
+  merkleLeaf        String?
+  
+  // 🛡️ Security & Meta
+  isBlocked         Boolean      @default(false)
+  riskScore         Float        @default(0)
+  lastIp            String?
+  
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  // Relationships
+  purchases         Purchase[]
+  auditLogs         AuditLog[]
+
+  @@index([category])
+  @@index([hasClaimedAirdrop])
+  @@index([hasClaimedTokens])
+}
+
+//////////////////////////////////////////////////////
+// 🛒 PURCHASE RECORDS
+//////////////////////////////////////////////////////
+
+model Purchase {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [wallet], onDelete: Cascade)
+  
+  txHash      String   @unique
+  amountUsd   Decimal
+  tokenAmount Decimal
+  tokenPrice  Decimal
+  currency    String   @default("ETH")
+  
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+}
+
+//////////////////////////////////////////////////////
+// 📜 AUDIT LOG & TRANSACTIONS
+//////////////////////////////////////////////////////
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  action    String   // AIRDROP_CLAIM, PURCHASE_CLAIM, PURCHASE, SET_ROOT, etc
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [wallet])
+  
+  txHash    String?
+  metadata  Json?
+  ip        String?
+  
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+}
+
+//////////////////////////////////////////////////////
+// 📊 ANALYTICS
+//////////////////////////////////////////////////////
+
+model DailyStats {
+  id            String   @id @default(uuid())
+  date          DateTime @unique @default(now())
+  
+  totalUsers    Int
+  totalAirdrop  Decimal
+  totalPurchased Decimal
+  claimedAirdrop Int
+  claimedTokens  Int
+  
+  createdAt     DateTime @default(now())
+}

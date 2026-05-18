@@ -1,38 +1,12 @@
 import { Router } from "express";
+import { claimController } from "../controllers/claim.controller";
 import { rateLimit } from "../middleware/rate-limit";
 
 const router = Router();
 
-// Get claim status for a user
-router.get("/status/:wallet", rateLimit({ windowMs: 60000, max: 30 }), async (req, res) => {
-  try {
-    const { wallet } = req.params;
-    // Implementation in claim.controller.ts
-    res.json({ status: "ok", wallet });
-  } catch (error) {
-    res.status(500).json({ error: "Failed to get claim status" });
-  }
-});
-
-// Record a claim (called by frontend after tx confirmation)
-router.post("/record", rateLimit({ windowMs: 60000, max: 10 }), async (req, res) => {
-  try {
-    const { wallet, txHash } = req.body;
-    // Implementation in claim.controller.ts
-    res.json({ status: "ok", wallet, txHash });
-  } catch (error) {
-    res.status(500).json({ error: "Failed to record claim" });
-  }
-});
-
-// Get claim statistics
-router.get("/stats", rateLimit({ windowMs: 60000, max: 20 }), async (req, res) => {
-  try {
-    // Implementation in claim.controller.ts
-    res.json({ status: "ok" });
-  } catch (error) {
-    res.status(500).json({ error: "Failed to get stats" });
-  }
-});
+// Public endpoints with rate limiting
+router.get("/status/:wallet", rateLimit({ windowMs: 60000, max: 30 }), claimController.getClaimStatus);
+router.post("/submit", rateLimit({ windowMs: 60000, max: 10 }), claimController.submitClaim);
+router.post("/confirm", rateLimit({ windowMs: 60000, max: 10 }), claimController.confirmClaim);
 
 export default router;

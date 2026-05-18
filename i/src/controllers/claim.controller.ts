@@ -1,16 +1,16 @@
 import { Request, Response } from "express";
-import { ethers } from "ethers";
 import { airdropContractRead } from "../blockchain/airdrop.contract";
 import { recordClaim } from "../services/airdrop.service";
 import { logAction } from "../services/audit.service";
 import { checkSybil } from "../services/sybil.service";
 import { validateClaimRequest } from "../engine/validation";
+import { prisma } from "../db/prisma";
 
 const CHAIN_ID = 11155111; // Sepolia
 
 /**
- * POST /api/claim
- * Submit a claim to the blockchain (called from frontend)
+ * POST /api/claim/submit
+ * Submit a claim validation (called from frontend before on-chain tx)
  */
 export const submitClaim = async (req: Request, res: Response) => {
   try {
@@ -70,9 +70,8 @@ export const submitClaim = async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, error: "Claim ended" });
     }
 
-    // 5. Verify Merkle proof on-chain (optional, frontend does the actual claim)
-    // Here we just validate the proof format
-    const proofValid = proof.length > 0 && proof.every((p: string) => 
+    // 5. Verify Merkle proof format
+    const proofValid = Array.isArray(proof) && proof.length > 0 && proof.every((p: string) => 
       p.startsWith("0x") && p.length === 66
     );
 
