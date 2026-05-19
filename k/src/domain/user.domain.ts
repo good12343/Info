@@ -2,13 +2,19 @@ export type UserDomain = {
   wallet: string;
   totalBought: number;
   airdropPoints: number;
-  tokensAllocated: string;   // BigInt as string
-  tokensBought: string;      // BigInt as string
-  vestedTokens: string;      // BigInt as string
-  claimableTokens: string;   // BigInt as string
-  category: string;           // AIRDROP_ONLY, AIRDROP_BUYER, BUYER_ONLY, NONE
-  tier: string;              // BRONZE, SILVER, GOLD, PLATINUM
-  chainId: number;            // 11155111 for Sepolia
+  tokensAllocated: string;     // بالـ FOR (للعرض)
+  tokensAllocatedWei: string;  // ← بالـ wei (للعقد)
+  tokensBought: string;        // بالـ FOR
+  tokensBoughtWei: string;     // ← بالـ wei
+  vestedTokens: string;        // بالـ FOR
+  claimableTokens: string;     // بالـ FOR
+  category: string;            // AIRDROP_ONLY, AIRDROP_BUYER, BUYER_ONLY, NONE
+  tier: string;               // BRONZE, SILVER, GOLD, PLATINUM
+  chainId: number;             // 11155111 for Sepolia
+  merkleProof: string[];       // ← Merkle Proof
+  merkleLeaf: string | null;   // ← Merkle Leaf
+  hasClaimedAirdrop: boolean;
+  hasClaimedTokens: boolean;
 };
 
 /**
@@ -17,7 +23,7 @@ export type UserDomain = {
 export const isEligibleForAirdrop = (user: UserDomain): boolean => {
   return (
     user.airdropPoints > 0 &&
-    BigInt(user.tokensAllocated || "0") > 0n &&
+    BigInt(user.tokensAllocatedWei || "0") > 0n &&
     !user.category?.includes("BLOCKED")
   );
 };
@@ -33,8 +39,8 @@ export const calculateUserPower = (user: UserDomain): number => {
  * 💰 Calculate total tokens (allocated + bought)
  */
 export const calculateTotalTokens = (user: UserDomain): string => {
-  const allocated = BigInt(user.tokensAllocated || "0");
-  const bought = BigInt(user.tokensBought || "0");
+  const allocated = BigInt(user.tokensAllocatedWei || "0");
+  const bought = BigInt(user.tokensBoughtWei || "0");
   return (allocated + bought).toString();
 };
 
@@ -54,10 +60,15 @@ export const getUserSummary = (user: UserDomain) => {
     airdrop: {
       points: user.airdropPoints,
       tokens: user.tokensAllocated,
+      tokensWei: user.tokensAllocatedWei,
+      merkleProof: user.merkleProof,
+      merkleLeaf: user.merkleLeaf,
+      claimed: user.hasClaimedAirdrop,
     },
     purchase: {
       totalBought: user.totalBought,
       tokens: user.tokensBought,
+      tokensWei: user.tokensBoughtWei,
     },
     vesting: {
       vested: user.vestedTokens,

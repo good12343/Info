@@ -36,7 +36,8 @@ model User {
   
   // 📊 Airdrop State
   airdropPoints     Int          @default(0)     // النقاط المنجزة
-  airdropAllocated  Decimal      @default(0)     // التوكنز المستحقة (Points / 10)
+  airdropAllocated  Decimal      @default(0)     // التوكنز بالـ FOR (للعرض)
+  airdropAllocatedWei String     @default("0")   // ← التوكنز بالـ wei (للعقد)
   hasClaimedAirdrop Boolean      @default(false)
   airdropClaimedAt  DateTime?
   airdropTxHash     String?
@@ -44,13 +45,14 @@ model User {
   // 🛒 Purchase State
   totalBoughtUsd    Decimal      @default(0)
   purchaseCount     Int          @default(0)
-  hasClaimedTokens  Boolean      @default(false) // هل طالب بتوكنز المشتريات
+  hasClaimedTokens  Boolean      @default(false)
   tokensClaimedAt   DateTime?
   tokensClaimTxHash String?
   
   // 🌳 Merkle Tree (For Airdrop)
   merkleProof       String[]
   merkleLeaf        String?
+  chainId           Int          @default(11155111)  // ← Sepolia
   
   // 🛡️ Security & Meta
   isBlocked         Boolean      @default(false)
@@ -62,11 +64,32 @@ model User {
 
   // Relationships
   purchases         Purchase[]
+  airdropClaims     AirdropClaim[]
+  vestingClaims     VestingClaim[]
   auditLogs         AuditLog[]
 
   @@index([category])
   @@index([hasClaimedAirdrop])
   @@index([hasClaimedTokens])
+}
+
+//////////////////////////////////////////////////////
+// 🪂 AIRDROP CLAIM RECORDS
+//////////////////////////////////////////////////////
+
+model AirdropClaim {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [wallet], onDelete: Cascade)
+  
+  txHash      String   @unique
+  amountWei   String   // الكمية بالـ wei (مطابق للعقد)
+  amountFor   Decimal  // الكمية بالـ FOR (للعرض)
+  
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([txHash])
 }
 
 //////////////////////////////////////////////////////
@@ -80,13 +103,33 @@ model Purchase {
   
   txHash      String   @unique
   amountUsd   Decimal
-  tokenAmount Decimal
+  tokenAmount Decimal  // بالـ FOR
+  tokenAmountWei String // ← جديد: بالـ wei
   tokenPrice  Decimal
   currency    String   @default("ETH")
   
   createdAt   DateTime @default(now())
 
   @@index([userId])
+}
+
+//////////////////////////////////////////////////////
+// 🔓 VESTING CLAIM RECORDS
+//////////////////////////////////////////////////////
+
+model VestingClaim {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [wallet], onDelete: Cascade)
+  
+  txHash      String   @unique
+  amountWei   String   // الكمية المسحوبة بالـ wei
+  amountFor   Decimal  // الكمية بالـ FOR (للعرض)
+  
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([txHash])
 }
 
 //////////////////////////////////////////////////////
