@@ -2,7 +2,8 @@ import express from "express";
 import cors from "cors";
 import airdropRoutes from "./routes/airdrop.routes";
 import purchaseRoutes from "./routes/purchase.routes";
-import vestingRoutes from "./routes/vesting.routes";  // ← جديد
+import vestingRoutes from "./routes/vesting.routes";
+import tasksRoutes from "./routes/task.routes";
 
 const app = express();
 
@@ -12,7 +13,8 @@ app.use(express.json());
 // Routes
 app.use("/api/airdrop", airdropRoutes);
 app.use("/api/purchase", purchaseRoutes);
-app.use("/api/vesting", vestingRoutes);  // ← جديد
+app.use("/api/vesting", vestingRoutes);
+app.use("/api/tasks", tasksRoutes);
 
 // Health Check
 app.get("/health", (req, res) => {

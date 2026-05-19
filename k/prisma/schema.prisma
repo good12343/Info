@@ -12,10 +12,10 @@ datasource db {
 //////////////////////////////////////////////////////
 
 enum UserCategory {
-  AIRDROP_ONLY      // 🪂 حصل على Airdrop فقط
-  BUYER_ONLY        // 🛒 اشترى فقط
-  AIRDROP_BUYER     // 🪂🛒 حصل على الأمرين
-  NONE              // ❌ لا شيء
+  AIRDROP_ONLY
+  BUYER_ONLY
+  AIRDROP_BUYER
+  NONE
 }
 
 enum UserTier {
@@ -26,18 +26,19 @@ enum UserTier {
 }
 
 //////////////////////////////////////////////////////
-// 👤 USER CORE
+// 👤 USER CORE (Refactored to use UUID as PK)
 //////////////////////////////////////////////////////
 
 model User {
-  wallet            String       @id
+  id                String       @id @default(uuid())
+  wallet            String       @unique // المحفظة فريدة ولكن ليست PK
   category          UserCategory @default(NONE)
   tier              UserTier     @default(BRONZE)
   
   // 📊 Airdrop State
-  airdropPoints     Int          @default(0)     // النقاط المنجزة
-  airdropAllocated  Decimal      @default(0)     // التوكنز بالـ FOR (للعرض)
-  airdropAllocatedWei String     @default("0")   // ← التوكنز بالـ wei (للعقد)
+  airdropPoints     Int          @default(0)
+  airdropAllocated  Decimal      @default(0)
+  airdropAllocatedWei String     @default("0")
   hasClaimedAirdrop Boolean      @default(false)
   airdropClaimedAt  DateTime?
   airdropTxHash     String?
@@ -49,10 +50,10 @@ model User {
   tokensClaimedAt   DateTime?
   tokensClaimTxHash String?
   
-  // 🌳 Merkle Tree (For Airdrop)
+  // 🌳 Merkle Tree
   merkleProof       String[]
   merkleLeaf        String?
-  chainId           Int          @default(11155111)  // ← Sepolia
+  chainId           Int          @default(11155111)
   
   // 🛡️ Security & Meta
   isBlocked         Boolean      @default(false)
@@ -67,10 +68,13 @@ model User {
   airdropClaims     AirdropClaim[]
   vestingClaims     VestingClaim[]
   auditLogs         AuditLog[]
+  userTasks         UserTask[]
+  riskLogs          RiskLog[]
+  fraudLogs         FraudLog[]
+  reviewQueue       ReviewQueue[]
 
+  @@index([wallet])
   @@index([category])
-  @@index([hasClaimedAirdrop])
-  @@index([hasClaimedTokens])
 }
 
 //////////////////////////////////////////////////////
@@ -80,16 +84,15 @@ model User {
 model AirdropClaim {
   id          String   @id @default(uuid())
   userId      String
-  user        User     @relation(fields: [userId], references: [wallet], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   
   txHash      String   @unique
-  amountWei   String   // الكمية بالـ wei (مطابق للعقد)
-  amountFor   Decimal  // الكمية بالـ FOR (للعرض)
+  amountWei   String
+  amountFor   Decimal
   
   createdAt   DateTime @default(now())
 
   @@index([userId])
-  @@index([txHash])
 }
 
 //////////////////////////////////////////////////////
@@ -99,12 +102,12 @@ model AirdropClaim {
 model Purchase {
   id          String   @id @default(uuid())
   userId      String
-  user        User     @relation(fields: [userId], references: [wallet], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   
   txHash      String   @unique
   amountUsd   Decimal
-  tokenAmount Decimal  // بالـ FOR
-  tokenAmountWei String // ← جديد: بالـ wei
+  tokenAmount Decimal
+  tokenAmountWei String
   tokenPrice  Decimal
   currency    String   @default("ETH")
   
@@ -120,27 +123,120 @@ model Purchase {
 model VestingClaim {
   id          String   @id @default(uuid())
   userId      String
-  user        User     @relation(fields: [userId], references: [wallet], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   
   txHash      String   @unique
-  amountWei   String   // الكمية المسحوبة بالـ wei
-  amountFor   Decimal  // الكمية بالـ FOR (للعرض)
+  amountWei   String
+  amountFor   Decimal
   
   createdAt   DateTime @default(now())
 
   @@index([userId])
-  @@index([txHash])
 }
 
 //////////////////////////////////////////////////////
-// 📜 AUDIT LOG & TRANSACTIONS
+// 🧭 TASK SYSTEM
+//////////////////////////////////////////////////////
+
+model Task {
+  id          String   @id
+  title       String
+  description String?
+  points      Int
+  platform    String   // X, TELEGRAM, YOUTUBE
+  category    String   // SOCIAL, VIDEO, ARTICLE
+  url         String?
+  isActive    Boolean  @default(true)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  userTasks   UserTask[]
+}
+
+model UserTask {
+  id          String   @id @default(uuid())
+  userId      String
+  taskId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task        Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  status      String   @default("PENDING") // PENDING, VERIFIED, REJECTED, REVIEW
+  rewardGiven Boolean  @default(false)
+
+  ip          String?
+  userAgent   String?
+  metadata    Json?
+
+  completedAt DateTime @default(now())
+
+  @@unique([userId, taskId])
+  @@index([userId])
+  @@index([taskId])
+}
+
+//////////////////////////////////////////////////////
+// 🛡️ RISK & FRAUD SYSTEM
+//////////////////////////////////////////////////////
+
+model RiskLog {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  taskId      String?
+
+  score       Int
+  reason      String
+  ip          String?
+  userAgent   String?
+  action      String
+
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+}
+
+model ReviewQueue {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  taskId      String?
+
+  reason      String
+  riskScore   Int
+  status      String   @default("PENDING")
+
+  createdAt   DateTime @default(now())
+  reviewedAt  DateTime?
+
+  @@index([userId])
+}
+
+model FraudLog {
+  id          String   @id @default(uuid())
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id])
+  taskId      String?
+
+  type        String
+  severity    String
+  ip          String?
+  metadata    Json?
+
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+}
+
+//////////////////////////////////////////////////////
+// 📜 AUDIT LOG
 //////////////////////////////////////////////////////
 
 model AuditLog {
   id        String   @id @default(uuid())
-  action    String   // AIRDROP_CLAIM, PURCHASE_CLAIM, PURCHASE, SET_ROOT, etc
+  action    String
   userId    String?
-  user      User?    @relation(fields: [userId], references: [wallet])
+  user      User?    @relation(fields: [userId], references: [id])
   
   txHash    String?
   metadata  Json?
@@ -149,7 +245,6 @@ model AuditLog {
   createdAt DateTime @default(now())
 
   @@index([userId])
-  @@index([action])
 }
 
 //////////////////////////////////////////////////////
