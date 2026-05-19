@@ -2,7 +2,7 @@ import app from "./app";
 
 const PORT = process.env.PORT || 3001;
 
-app.listen(PORT, () => {
+app.listen('0.0.0.0', () => {
   console.log("🚀 FOR Token Backend Server");
   console.log(`📡 Port: ${PORT}`);
   console.log(`⛓️  Chain: Sepolia (11155111)`);
