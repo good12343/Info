@@ -3,7 +3,7 @@ import { prisma } from "../db/prisma";
 export interface RiskResult {
   score: number;
   reasons: string[];
-  action: "APPROVE" | "REVIEW" | "REJECT";
+  action: "ALLOW" | "REVIEW" | "REJECT";
 }
 
 /**
@@ -53,7 +53,7 @@ export const analyzeRisk = async (userId: string, ip: string, userAgent?: string
     reasons.push("Suspicious browser/user-agent");
   }
 
-  let action: "APPROVE" | "REVIEW" | "REJECT" = "APPROVE";
+  let action: "ALLOW" | "REVIEW" | "REJECT" = "ALLOW";
   if (score > 70) action = "REJECT";
   else if (score >= 30) action = "REVIEW";
 

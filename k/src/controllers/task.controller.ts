@@ -1,15 +1,14 @@
+// src/controllers/task.controller.ts
 import { Request, Response } from "express";
 import { prisma } from "../db/prisma";
 import { processTaskExecution } from "../workers/task-worker";
 import { getOrCreateUser } from "../utils/user";
 
-/**
- * GET /api/tasks/list
- */
 export const listTasks = async (req: Request, res: Response) => {
   try {
     const tasks = await prisma.task.findMany({
-      where: { isActive: true }
+      where: { isActive: true },
+      orderBy: { points: 'desc' }
     });
 
     res.json(tasks);
@@ -18,9 +17,6 @@ export const listTasks = async (req: Request, res: Response) => {
   }
 };
 
-/**
- * POST /api/tasks/complete
- */
 export const completeTask = async (req: Request, res: Response) => {
   try {
     const { wallet, taskId, proof } = req.body;
@@ -32,7 +28,6 @@ export const completeTask = async (req: Request, res: Response) => {
     const ip = req.ip || "0.0.0.0";
     const userAgent = req.get("User-Agent");
 
-    // ✅ بدل findUnique → getOrCreateUser
     const user = await getOrCreateUser(wallet);
 
     if (user.isBlocked) {
@@ -50,7 +45,8 @@ export const completeTask = async (req: Request, res: Response) => {
     res.json({
       success: true,
       status: result.status,
-      riskScore: result.riskScore
+      riskScore: result.riskScore,
+      verified: result.verified
     });
 
   } catch (err: any) {
@@ -62,9 +58,6 @@ export const completeTask = async (req: Request, res: Response) => {
   }
 };
 
-/**
- * GET /api/tasks/status
- */
 export const getStatus = async (req: Request, res: Response) => {
   try {
     const { wallet } = req.query;
@@ -75,11 +68,15 @@ export const getStatus = async (req: Request, res: Response) => {
 
     const user = await prisma.user.findUnique({
       where: { wallet: wallet.toLowerCase() },
-      include: { userTasks: true }
+      include: {
+        userTasks: {
+          include: { task: true }
+        }
+      }
     });
 
     if (!user) {
-      return res.status(404).json({ error: "User not found" });
+      return res.json([]);
     }
 
     res.json(user.userTasks);

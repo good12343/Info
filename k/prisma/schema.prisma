@@ -26,12 +26,42 @@ enum UserTier {
 }
 
 //////////////////////////////////////////////////////
-// 👤 USER CORE (Refactored to use UUID as PK)
+// 🧭 TASK SYSTEM ENUMS (جديد)
+//////////////////////////////////////////////////////
+
+enum TaskPlatform {
+  X
+  TELEGRAM
+  YOUTUBE
+  ARTICLE
+}
+
+enum TaskCategory {
+  SOCIAL
+  VIDEO
+  ARTICLE
+}
+
+enum UserTaskStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+  REVIEW
+}
+
+enum RiskAction {
+  ALLOW
+  REVIEW
+  REJECT
+}
+
+//////////////////////////////////////////////////////
+// 👤 USER CORE
 //////////////////////////////////////////////////////
 
 model User {
   id                String       @id @default(uuid())
-  wallet            String       @unique // المحفظة فريدة ولكن ليست PK
+  wallet            String       @unique
   category          UserCategory @default(NONE)
   tier              UserTier     @default(BRONZE)
   
@@ -135,40 +165,41 @@ model VestingClaim {
 }
 
 //////////////////////////////////////////////////////
-// 🧭 TASK SYSTEM
+// 🧭 TASK SYSTEM (مُحدَّث بالـ Enums)
 //////////////////////////////////////////////////////
 
 model Task {
-  id          String   @id
+  id          String       @id
   title       String
   description String?
   points      Int
-  platform    String   // X, TELEGRAM, YOUTUBE
-  category    String   // SOCIAL, VIDEO, ARTICLE
+  platform    TaskPlatform // ← enum بدل String
+  category    TaskCategory // ← enum بدل String
   url         String?
-  isActive    Boolean  @default(true)
+  isActive    Boolean      @default(true)
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
 
   userTasks   UserTask[]
+  riskLogs    RiskLog[]    // ← علاقة جديدة
 }
 
 model UserTask {
-  id          String   @id @default(uuid())
+  id          String         @id @default(uuid())
   userId      String
   taskId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  task        Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task        Task           @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
-  status      String   @default("PENDING") // PENDING, VERIFIED, REJECTED, REVIEW
-  rewardGiven Boolean  @default(false)
+  status      UserTaskStatus @default(PENDING) // ← enum بدل String
+  rewardGiven Boolean        @default(false)
 
   ip          String?
   userAgent   String?
   metadata    Json?
 
-  completedAt DateTime @default(now())
+  completedAt DateTime       @default(now())
 
   @@unique([userId, taskId])
   @@index([userId])
@@ -176,24 +207,26 @@ model UserTask {
 }
 
 //////////////////////////////////////////////////////
-// 🛡️ RISK & FRAUD SYSTEM
+// 🛡️ RISK & FRAUD SYSTEM (مُحدَّث)
 //////////////////////////////////////////////////////
 
 model RiskLog {
-  id          String   @id @default(uuid())
+  id          String     @id @default(uuid())
   userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   taskId      String?
+  task        Task?      @relation(fields: [taskId], references: [id], onDelete: SetNull) // ← علاقة جديدة
 
   score       Int
   reason      String
   ip          String?
   userAgent   String?
-  action      String
+  action      RiskAction // ← enum بدل String
 
-  createdAt   DateTime @default(now())
+  createdAt   DateTime   @default(now())
 
   @@index([userId])
+  @@index([taskId])
 }
 
 model ReviewQueue {
