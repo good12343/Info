@@ -1,13 +1,17 @@
 import { Request, Response } from "express";
 import { prisma } from "../db/prisma";
 import { processTaskExecution } from "../workers/task-worker";
+import { getOrCreateUser } from "../utils/user";
 
 /**
  * GET /api/tasks/list
  */
 export const listTasks = async (req: Request, res: Response) => {
   try {
-    const tasks = await prisma.task.findMany({ where: { isActive: true } });
+    const tasks = await prisma.task.findMany({
+      where: { isActive: true }
+    });
+
     res.json(tasks);
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
@@ -20,24 +24,41 @@ export const listTasks = async (req: Request, res: Response) => {
 export const completeTask = async (req: Request, res: Response) => {
   try {
     const { wallet, taskId, proof } = req.body;
+
+    if (!wallet || !taskId) {
+      return res.status(400).json({ error: "wallet and taskId are required" });
+    }
+
     const ip = req.ip || "0.0.0.0";
     const userAgent = req.get("User-Agent");
 
-    // 1. جلب المستخدم بواسطة المحفظة (لأن المحفظة هي المدخل من الـ Frontend)
-    const user = await prisma.user.findUnique({ where: { wallet: wallet.toLowerCase() } });
-    if (!user) return res.status(404).json({ error: "User not found" });
-    if (user.isBlocked) return res.status(403).json({ error: "User is blocked" });
+    // ✅ بدل findUnique → getOrCreateUser
+    const user = await getOrCreateUser(wallet);
 
-    // 2. إرسال المهمة للمعالجة عبر الـ Worker (الذي يربط كافة المحركات)
-    const result = await processTaskExecution(user.id, taskId, ip, userAgent, proof);
-    
+    if (user.isBlocked) {
+      return res.status(403).json({ error: "User is blocked" });
+    }
+
+    const result = await processTaskExecution(
+      user.id,
+      taskId,
+      ip,
+      userAgent,
+      proof
+    );
+
     res.json({
       success: true,
       status: result.status,
       riskScore: result.riskScore
     });
+
   } catch (err: any) {
-    res.status(400).json({ success: false, error: err.message });
+    console.error("completeTask error:", err);
+    res.status(400).json({
+      success: false,
+      error: err.message
+    });
   }
 };
 
@@ -47,15 +68,27 @@ export const completeTask = async (req: Request, res: Response) => {
 export const getStatus = async (req: Request, res: Response) => {
   try {
     const { wallet } = req.query;
-    const user = await prisma.user.findUnique({ 
-      where: { wallet: (wallet as string).toLowerCase() },
+
+    if (!wallet || typeof wallet !== "string") {
+      return res.status(400).json({ error: "wallet is required" });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { wallet: wallet.toLowerCase() },
       include: { userTasks: true }
     });
-    
-    if (!user) return res.status(404).json({ error: "User not found" });
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
     res.json(user.userTasks);
+
   } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({
+      success: false,
+      error: err.message
+    });
   }
 };
 
