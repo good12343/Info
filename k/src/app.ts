@@ -6,6 +6,7 @@ import vestingRoutes from "./routes/vesting.routes";
 import tasksRoutes from "./routes/task.routes";
 import adminRoutes from "./routes/admin.routes"; // ← جديد
 import authRoutes from "./routes/auth.routes";
+import './types/global'; 
 
 const app = express();
 

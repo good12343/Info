@@ -50,5 +50,4 @@ declare global {
     | "CLASSIFY_USER"
     | "BUILD_TREE";
 }
-
 export {};
