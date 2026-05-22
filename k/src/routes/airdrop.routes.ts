@@ -1,15 +1,23 @@
 import { Router } from "express";
-import { airdropController } from "../controllers/airdrop.controller";
+import {
+  checkEligibility,
+  recordAirdropClaim,
+  getStats,
+  getClaimStatusHandler,
+} from "../controllers/airdrop.controller";
 
 const router = Router();
 
-// Admin: تخصيص إنزال جوي
-router.post("/allocate", airdropController.allocateAirdrop);
+// ── Eligibility ──
+router.get("/eligibility/:wallet", checkEligibility);
 
-// Frontend: جلب الأهلية (amount + proof)
-router.get("/eligibility", airdropController.getEligibility);
+// ── Claim ──
+router.post("/claim", recordAirdropClaim);
 
-// Frontend: تسجيل مطالبة بعد نجاحها على البلوكشين
-router.post("/claim", airdropController.claimAirdrop);
+// ── Status ──
+router.get("/claim-status/:wallet", getClaimStatusHandler);
+
+// ── Stats ──
+router.get("/stats", getStats);
 
 export default router;

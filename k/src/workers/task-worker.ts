@@ -1,4 +1,3 @@
-// src/workers/task-worker.ts
 import * as riskEngine from "../services/risk-engine.service";
 import * as verificationBot from "../services/task-verification.bot";
 import * as rewardEngine from "../services/reward.service";
@@ -7,7 +6,35 @@ import { prisma } from "../db/prisma";
 import { UserTaskStatus } from "@prisma/client";
 
 /**
- * ⚙️ Task Worker
+ * ⚙️ Task Worker (Refactored)
+ * 
+ * Responsible ONLY for:
+ * - Task verification
+ * - Risk analysis
+ * - Status updates
+ * - Reward trigger (DB only)
+ * 
+ * REMOVED:
+ * - processAirdrop calls
+ * - Blockchain logic
+ * - Merkle tree building
+ * - Direct contract interactions
+ * 
+ * Architecture:
+ * Task Worker → DB Points → Merkle Worker (separate batch)
+ */
+
+export interface TaskExecutionResult {
+  status: UserTaskStatus;
+  riskScore: number;
+  verified: boolean;
+  rewardGiven?: boolean;
+  points?: number;
+}
+
+/**
+ * Process task execution
+ * Pure off-chain operation
  */
 export const processTaskExecution = async (
   userId: string,
@@ -15,22 +42,24 @@ export const processTaskExecution = async (
   ip: string,
   userAgent?: string,
   proof?: any
-) => {
-  // 1. جلب المستخدم والمهمة
-  const userRecord = await prisma.user.findUnique({ where: { id: userId } });
-  const taskRecord = await prisma.task.findUnique({ where: { id: taskId } });
+): Promise<TaskExecutionResult> => {
+  // 1. Fetch user and task
+  const [userRecord, taskRecord] = await Promise.all([
+    prisma.user.findUnique({ where: { id: userId } }),
+    prisma.task.findUnique({ where: { id: taskId } }),
+  ]);
 
   if (!userRecord || !taskRecord) {
     throw new Error("User or Task not found");
   }
 
-  // 2. التحقق من عدم التكرار
+  // 2. Check for existing completion
   const existingTask = await prisma.userTask.findUnique({
-    where: { userId_taskId: { userId, taskId } }
+    where: { userId_taskId: { userId, taskId } },
   });
 
   if (existingTask?.rewardGiven) {
-    return { status: "ALREADY_CLAIMED", riskScore: 0 };
+    return { status: UserTaskStatus.VERIFIED, riskScore: 0, verified: true };
   }
 
   // 3. Risk Analysis
@@ -44,30 +73,32 @@ export const processTaskExecution = async (
       reason: riskResult.reasons.join(", "),
       ip,
       userAgent,
-      action: riskResult.action
-    }
+      action: riskResult.action,
+    },
   });
 
   if (riskResult.action === "REJECT") {
     throw new Error("Task rejected by Risk Engine");
   }
 
-  // 4. Verification (التحقق الحقيقي - يُرجع false مؤقتاً)
-  const isVerified = await verificationBot.verifyTaskExecution(taskRecord, proof);
+  // 4. Verification (actual verification)
+  const isVerified = await verificationBot.verifyTaskExecution(
+    taskRecord,
+    proof
+  );
 
-  // 5. تحديد الحالة النهائية
+  // 5. Determine final status
   let finalStatus: UserTaskStatus;
-  
+
   if (riskResult.action === "REVIEW") {
     finalStatus = UserTaskStatus.REVIEW;
   } else if (isVerified) {
     finalStatus = UserTaskStatus.VERIFIED;
   } else {
-    // التحقق فشل - نضع في REVIEW للمراجعة اليدوية
     finalStatus = UserTaskStatus.REVIEW;
   }
 
-  // 6. حفظ/تحديث المهمة
+  // 6. Save/update task record
   const userTask = await prisma.userTask.upsert({
     where: { userId_taskId: { userId, taskId } },
     update: {
@@ -75,7 +106,7 @@ export const processTaskExecution = async (
       ip,
       userAgent,
       metadata: proof ?? {},
-      completedAt: new Date()
+      completedAt: new Date(),
     },
     create: {
       userId,
@@ -85,26 +116,64 @@ export const processTaskExecution = async (
       userAgent,
       metadata: proof ?? {},
       rewardGiven: false,
-      completedAt: new Date()
-    }
+      completedAt: new Date(),
+    },
   });
 
-  // 7. توزيع المكافأة (فقط إذا VERIFIED)
+  // 7. Distribute reward ONLY if VERIFIED and not already given
+  let rewardResult;
   if (finalStatus === UserTaskStatus.VERIFIED && !userTask.rewardGiven) {
-    await rewardEngine.distributeReward(userId, taskId);
-    
-    await prisma.userTask.update({
-      where: { id: userTask.id },
-      data: { rewardGiven: true }
-    });
+    rewardResult = await rewardEngine.distributeReward(userId, taskId);
   }
 
-  // 8. تحليل الاحتيال
-  await fraudDetector.analyzeFraudPatterns(userId);
+  // 8. Fraud analysis (async, non-blocking)
+  fraudDetector.analyzeFraudPatterns(userId).catch(console.error);
 
   return {
     status: finalStatus,
     riskScore: riskResult.score,
-    verified: isVerified
+    verified: isVerified,
+    rewardGiven: rewardResult?.success,
+    points: rewardResult?.points,
+  };
+};
+
+/**
+ * Process review approval (admin action)
+ */
+export const processReviewApproval = async (
+  userTaskId: string
+): Promise<TaskExecutionResult> => {
+  const userTask = await prisma.userTask.findUnique({
+    where: { id: userTaskId },
+    include: { task: true },
+  });
+
+  if (!userTask) {
+    throw new Error("User task not found");
+  }
+
+  if (userTask.status !== UserTaskStatus.REVIEW) {
+    throw new Error("Task is not in review status");
+  }
+
+  // Update to verified
+  await prisma.userTask.update({
+    where: { id: userTaskId },
+    data: { status: UserTaskStatus.VERIFIED },
+  });
+
+  // Distribute reward
+  const rewardResult = await rewardEngine.distributeReward(
+    userTask.userId,
+    userTask.taskId
+  );
+
+  return {
+    status: UserTaskStatus.VERIFIED,
+    riskScore: 0,
+    verified: true,
+    rewardGiven: rewardResult.success,
+    points: rewardResult.points,
   };
 };

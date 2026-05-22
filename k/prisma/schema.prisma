@@ -26,7 +26,7 @@ enum UserTier {
 }
 
 //////////////////////////////////////////////////////
-// 🧭 TASK SYSTEM ENUMS (جديد)
+// 🧭 TASK SYSTEM ENUMS
 //////////////////////////////////////////////////////
 
 enum TaskPlatform {
@@ -55,6 +55,20 @@ enum RiskAction {
   REJECT
 }
 
+enum MerkleJobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum AirdropSyncStatus {
+  PENDING
+  SYNCING
+  SYNCED
+  FAILED
+}
+
 //////////////////////////////////////////////////////
 // 👤 USER CORE
 //////////////////////////////////////////////////////
@@ -80,7 +94,7 @@ model User {
   tokensClaimedAt   DateTime?
   tokensClaimTxHash String?
   
-  // 🌳 Merkle Tree
+  // 🌳 Merkle Tree (Proofs stored for frontend claim)
   merkleProof       String[]
   merkleLeaf        String?
   chainId           Int          @default(11155111)
@@ -105,6 +119,40 @@ model User {
 
   @@index([wallet])
   @@index([category])
+  @@index([airdropPoints])
+}
+
+//////////////////////////////////////////////////////
+// 🌳 MERKLE DISTRIBUTION STATE
+//////////////////////////////////////////////////////
+
+model AirdropState {
+  id              String            @id @default(uuid())
+  merkleRoot      String            @default("0x0")
+  totalEligible   Int               @default(0)
+  totalAmountWei  String            @default("0")
+  lastSyncedAt    DateTime?
+  syncTxHash      String?
+  status          AirdropSyncStatus @default(PENDING)
+  errorMessage    String?
+  
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+}
+
+model MerkleJob {
+  id            String          @id @default(uuid())
+  status        MerkleJobStatus @default(PENDING)
+  startedAt     DateTime?
+  completedAt   DateTime?
+  error         String?
+  root          String?
+  txHash        String?
+  eligibleCount Int             @default(0)
+  totalAmountWei String         @default("0")
+  
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
 }
 
 //////////////////////////////////////////////////////
@@ -165,7 +213,7 @@ model VestingClaim {
 }
 
 //////////////////////////////////////////////////////
-// 🧭 TASK SYSTEM (مُحدَّث بالـ Enums)
+// 🧭 TASK SYSTEM
 //////////////////////////////////////////////////////
 
 model Task {
@@ -173,8 +221,8 @@ model Task {
   title       String
   description String?
   points      Int
-  platform    TaskPlatform // ← enum بدل String
-  category    TaskCategory // ← enum بدل String
+  platform    TaskPlatform
+  category    TaskCategory
   url         String?
   isActive    Boolean      @default(true)
 
@@ -182,7 +230,7 @@ model Task {
   updatedAt   DateTime     @updatedAt
 
   userTasks   UserTask[]
-  riskLogs    RiskLog[]    // ← علاقة جديدة
+  riskLogs    RiskLog[]
 }
 
 model UserTask {
@@ -192,7 +240,7 @@ model UserTask {
   user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   task        Task           @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
-  status      UserTaskStatus @default(PENDING) // ← enum بدل String
+  status      UserTaskStatus @default(PENDING)
   rewardGiven Boolean        @default(false)
 
   ip          String?
@@ -204,10 +252,11 @@ model UserTask {
   @@unique([userId, taskId])
   @@index([userId])
   @@index([taskId])
+  @@index([status])
 }
 
 //////////////////////////////////////////////////////
-// 🛡️ RISK & FRAUD SYSTEM (مُحدَّث)
+// 🛡️ RISK & FRAUD SYSTEM
 //////////////////////////////////////////////////////
 
 model RiskLog {
@@ -215,13 +264,13 @@ model RiskLog {
   userId      String
   user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   taskId      String?
-  task        Task?      @relation(fields: [taskId], references: [id], onDelete: SetNull) // ← علاقة جديدة
+  task        Task?      @relation(fields: [taskId], references: [id], onDelete: SetNull)
 
   score       Int
   reason      String
   ip          String?
   userAgent   String?
-  action      RiskAction // ← enum بدل String
+  action      RiskAction
 
   createdAt   DateTime   @default(now())
 
@@ -278,6 +327,7 @@ model AuditLog {
   createdAt DateTime @default(now())
 
   @@index([userId])
+  @@index([action])
 }
 
 //////////////////////////////////////////////////////

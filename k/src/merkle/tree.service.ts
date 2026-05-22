@@ -1,12 +1,10 @@
 import { MerkleTree } from "merkletreejs";
 import keccak256 from "keccak256";
-import { ethers } from "ethers";
 import { hashLeaf } from "./hash.service";
 
-interface AirdropEntry {
+export interface AirdropEntry {
   wallet: string;
   amount: string | number | bigint;
-  chainId?: number;
 }
 
 export interface MerkleTreeResult {
@@ -16,23 +14,26 @@ export interface MerkleTreeResult {
 }
 
 /**
- * Build a Merkle tree from airdrop entries
- * Matches Airdrop.sol logic exactly
+ * 🌳 Pure Merkle Tree Builder
+ * No DB side effects - takes entries, returns tree
  */
-export const buildMerkleTree = (data: AirdropEntry[], chainId: number = 11155111): MerkleTreeResult | null => {
+export const buildMerkleTree = (
+  data: AirdropEntry[],
+  chainId: number = 11155111
+): MerkleTreeResult | null => {
   if (data.length === 0) return null;
 
   const leaves = data.map((entry) => {
     const leaf = hashLeaf(entry.wallet, entry.amount, chainId);
     return {
-      wallet: entry.wallet,
+      wallet: entry.wallet.toLowerCase(),
       amount: BigInt(entry.amount).toString(),
       leaf,
     };
   });
 
   const leafHashes = leaves.map((l) => Buffer.from(l.leaf.slice(2), "hex"));
-  
+
   const tree = new MerkleTree(leafHashes, keccak256, {
     sortPairs: true,
     hashLeaves: false, // We already hash leaves
@@ -57,8 +58,14 @@ export const verifyProof = (
 ): boolean => {
   const leafBuffer = Buffer.from(leaf.slice(2), "hex");
   const proofBuffers = proof.map((p) => Buffer.from(p.slice(2), "hex"));
-  
-  return MerkleTree.verify(proofBuffers, leafBuffer, Buffer.from(root.slice(2), "hex"), keccak256, {
-    sortPairs: true,
-  });
+
+  return MerkleTree.verify(
+    proofBuffers,
+    leafBuffer,
+    Buffer.from(root.slice(2), "hex"),
+    keccak256,
+    {
+      sortPairs: true,
+    }
+  );
 };

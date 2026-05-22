@@ -1,83 +1,92 @@
 import { Request, Response } from "express";
-import {
-  processAirdrop,
-  recordAirdropClaim,
-  getAirdropEligibility,
-} from "../services/airdrop.service";
+import { getAirdropEligibility, getAirdropStats } from "../services/airdrop.service";
+import { validateClaim, recordClaim, getClaimStatus } from "../services/claim.service";
 
 /**
- * POST /api/airdrop/allocate
- * Admin: تخصيص إنزال جوي لمستخدم
+ * 🪂 Airdrop Controller (Refactored)
+ * Uses separated services:
+ * - airdrop.service: eligibility queries
+ * - claim.service: claim validation & recording
  */
-export const allocateAirdrop = async (req: Request, res: Response) => {
-  try {
-    const { wallet, points } = req.body;
-    const result = await processAirdrop(wallet, points);
-    res.json({ success: true, data: result });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-};
 
 /**
- * GET /api/airdrop/eligibility?address=0x...
- * 
- * يُرجع للـ Frontend:
- * {
- *   eligible: true,
- *   amount: "100000000000000000000",  // wei
- *   proof: ["0xabc...", "0xdef..."],  // Merkle Proof
- *   alreadyClaimed: false
- * }
+ * GET /airdrop/eligibility/:wallet
+ * Check if user is eligible for airdrop
  */
-export const getEligibility = async (req: Request, res: Response) => {
+export const checkEligibility = async (req: Request, res: Response) => {
   try {
-    const address = req.query.address as string;
-
-    if (!address) {
-      return res.status(400).json({
-        success: false,
-        error: "Address parameter is required",
-      });
+    const walletParam = req.params.wallet as string;
+    if (!walletParam || typeof walletParam !== "string") {
+      return res.status(400).json({ error: "Wallet address required" });
     }
 
-    const result = await getAirdropEligibility(address);
-    res.json({ success: true, data: result });
+    const result = await getAirdropEligibility(walletParam);
+    res.json(result);
   } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ error: err.message });
   }
 };
 
 /**
- * POST /api/airdrop/claim
- * 
- * يستقبل من Frontend:
- * {
- *   wallet: "0x...",
- *   txHash: "0x...",
- *   amount: "100000000000000000000"  // wei (اختياري للتحقق)
- * }
+ * POST /airdrop/claim
+ * Record a claim after on-chain transaction
  */
-export const claimAirdrop = async (req: Request, res: Response) => {
+export const recordAirdropClaim = async (req: Request, res: Response) => {
   try {
-    const { wallet, txHash, amount } = req.body;
+    const { wallet, txHash, amountWei } = req.body;
 
     if (!wallet || !txHash) {
+      return res.status(400).json({ error: "Wallet and txHash required" });
+    }
+
+    // Validate claim first
+    const validation = await validateClaim(wallet);
+    if (!validation.valid) {
       return res.status(400).json({
-        success: false,
-        error: "Wallet and txHash are required",
+        error: validation.reason || "Claim validation failed",
       });
     }
 
-    const result = await recordAirdropClaim(wallet, txHash, amount);
-    res.json({ success: true, data: result });
+    // Record the claim
+    const result = await recordClaim(wallet, txHash, amountWei);
+
+    res.json({
+      success: true,
+      user: result,
+      amountWei: validation.amountWei,
+    });
   } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(400).json({ error: err.message });
   }
 };
 
-export const airdropController = {
-  allocateAirdrop,
-  getEligibility,
-  claimAirdrop,
+/**
+ * GET /airdrop/stats
+ * Get airdrop statistics
+ */
+export const getStats = async (req: Request, res: Response) => {
+  try {
+    const stats = await getAirdropStats();
+    res.json(stats);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+/**
+ * GET /airdrop/claim-status/:wallet
+ * Get claim status for a user
+ */
+export const getClaimStatusHandler = async (req: Request, res: Response) => {
+  try {
+    const walletParam = req.params.wallet as string;
+    if (!walletParam || typeof walletParam !== "string") {
+      return res.status(400).json({ error: "Wallet address required" });
+    }
+
+    const result = await getClaimStatus(walletParam);
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 };

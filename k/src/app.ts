@@ -6,7 +6,8 @@ import vestingRoutes from "./routes/vesting.routes";
 import tasksRoutes from "./routes/task.routes";
 import adminRoutes from "./routes/admin.routes"; // ← جديد
 import authRoutes from "./routes/auth.routes";
-import './types/global'; 
+import './types/global';
+import { initCronJobs } from "./workers/cron-scheduler";
 
 const app = express();
 
@@ -20,6 +21,8 @@ app.use("/api/vesting", vestingRoutes);
 app.use("/api/tasks", tasksRoutes);
 app.use("/api/admin", adminRoutes); // ← جديد
 app.use("/api/auth", authRoutes);
+
+initCronJobs();
 
 // Health Check
 app.get("/health", (req, res) => {

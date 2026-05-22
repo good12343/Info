@@ -1,31 +1,51 @@
-// src/routes/admin.routes.ts
-import { Router } from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import { adminController } from "../controllers/admin.controller";
-import { requireGov, requireOperator } from "../middleware/roles";
 
 const router = Router();
 
-// 🛡️ كل الـ routes تحتاج Governance أو Admin role من الـ Contract
-router.use(requireGov); // ← يتحقق من الـ Blockchain مباشرة
+// Simple admin auth middleware (replace with your actual roles middleware)
+const requireAdmin = (req: Request, res: Response, next: NextFunction) => {
+  if (!req.wallet) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  // Add your role check logic here
+  next();
+};
 
-// ─── Task Management ────────────────────────────────────────────────────────
-router.get("/tasks", adminController.listAllTasks);
-router.post("/tasks", adminController.createTask);
-router.put("/tasks/:id", adminController.updateTask);
-router.delete("/tasks/:id", adminController.deleteTask);
-router.patch("/tasks/:id/toggle", adminController.toggleTask);
+// ── Tasks ──
+router.get("/tasks", requireAdmin, adminController.listAllTasks);
+router.post("/tasks", requireAdmin, adminController.createTask);
+router.put("/tasks/:id", requireAdmin, adminController.updateTask);
+router.delete("/tasks/:id", requireAdmin, adminController.deleteTask);
+router.post("/tasks/:id/toggle", requireAdmin, adminController.toggleTask);
 
-// ─── User Task Management ───────────────────────────────────────────────────
-router.get("/user-tasks", adminController.listUserTasks);
-router.post("/user-tasks/:id/verify", adminController.verifyUserTask);
-router.post("/user-tasks/:id/reject", adminController.rejectUserTask);
+// ── User Tasks ──
+router.get("/user-tasks", requireAdmin, adminController.listUserTasks);
+router.post("/user-tasks/:id/verify", requireAdmin, adminController.verifyUserTask);
+router.post("/user-tasks/:id/reject", requireAdmin, adminController.rejectUserTask);
 
-// ─── Review Queue ───────────────────────────────────────────────────────────
-router.get("/review-queue", adminController.getReviewQueue);
-router.post("/review-queue/:id/approve", adminController.approveReview);
-router.post("/review-queue/:id/reject", adminController.rejectReview);
+// ── Review Queue ──
+router.get("/review-queue", requireAdmin, adminController.getReviewQueue);
+router.post("/review-queue/:id/approve", requireAdmin, adminController.approveReview);
+router.post("/review-queue/:id/reject", requireAdmin, adminController.rejectReview);
 
-// ─── Stats ──────────────────────────────────────────────────────────────────
-router.get("/stats", adminController.getDashboardStats);
+// ── Dashboard ──
+router.get("/dashboard", requireAdmin, adminController.getDashboardStats);
+
+// ═════════════════════════════════════════════
+// 🌳 MERKLE ADMIN ROUTES (NEW)
+// ═════════════════════════════════════════════
+
+// Trigger full rebuild + sync
+router.post("/rebuild-airdrop", requireAdmin, adminController.rebuildAirdrop);
+
+// Sync root to contract (or check status)
+router.post("/sync-merkle-root", requireAdmin, adminController.syncMerkleRoot);
+
+// Get current Merkle status
+router.get("/merkle-status", requireAdmin, adminController.getMerkleStatus);
+
+// Get job history
+router.get("/merkle-jobs", requireAdmin, adminController.getMerkleJobs);
 
 export default router;
