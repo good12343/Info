@@ -3,6 +3,7 @@ import { prisma } from "../db/prisma";
 import { TaskPlatform, TaskCategory, UserTaskStatus } from "@prisma/client";
 import * as merkleWorker from "../workers/merkle-worker";
 import { getSyncStatus } from "../services/merkle-sync.service";
+import { processReviewApproval } from "../workers/task-worker";
 
 // ─────────────────────────────────────────────
 // Audit Log Helper
@@ -254,17 +255,25 @@ export const approveReview = async (req: Request, res: Response) => {
   try {
     const adminWallet = req.wallet!;
     const id = safeString(req.params.id);
-    if (!id) return res.status(400).json({ error: "Invalid id" });
 
-    const userTask = await prisma.userTask.update({
-      where: { id },
-      data: { status: UserTaskStatus.VERIFIED },
+    if (!id) {
+      return res.status(400).json({ error: "Invalid id" });
+    }
+
+    const result = await processReviewApproval(id);
+
+    await auditAction("REVIEW_APPROVE", adminWallet, {
+      userTaskId: id,
     });
 
-    await auditAction("REVIEW_APPROVE", adminWallet, { userTaskId: id });
-    res.json({ success: true, userTask });
+    res.json({
+      success: true,
+      result,
+    });
   } catch (err: any) {
-    res.status(400).json({ error: err.message });
+    res.status(400).json({
+      error: err.message,
+    });
   }
 };
 
