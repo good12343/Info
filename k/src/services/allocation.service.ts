@@ -117,11 +117,29 @@ export const getEligibleUsers = async () => {
 /**
  * Check if user is eligible for airdrop
  */
-export const isEligible = async (wallet: string): Promise<boolean> => {
+/**
+ * Check if user is eligible for airdrop
+ */
+export const isEligible = async (
+  wallet: string
+): Promise<boolean> => {
   const user = await prisma.user.findUnique({
-    where: { wallet: wallet.toLowerCase() },
-    select: { airdropAllocatedWei: true, isBlocked: true },
+    where: {
+      wallet: wallet.toLowerCase(),
+    },
+    select: {
+      airdropPoints: true,
+      airdropAllocatedWei: true,
+      isBlocked: true,
+    },
   });
 
-  return !!user && user.airdropAllocatedWei !== "0" && !user.isBlocked;
+  if (!user) {
+    return false;
+  }
+
+  return (
+    !user.isBlocked &&
+    user.airdropPoints > 0
+  );
 };

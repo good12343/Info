@@ -400,7 +400,11 @@ export const syncMerkleRoot = async (req: Request, res: Response) => {
       const { pushMerkleRootToContract } = await import(
         "../services/merkle-sync.service"
       );
-      const txHash = await pushMerkleRootToContract(syncStatus.dbRoot);
+      const txHash =
+  await pushMerkleRootToContract(
+    syncStatus.dbRoot,
+    syncStatus.totalAmountWei
+  );
 
       await auditAction("MERKLE_SYNC", adminWallet, {
         root: syncStatus.dbRoot,

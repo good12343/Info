@@ -8,6 +8,7 @@ import adminRoutes from "./routes/admin.routes"; // ← جديد
 import authRoutes from "./routes/auth.routes";
 import './types/global';
 import { initCronJobs } from "./workers/cron-scheduler";
+import { cronRebuild } from "./workers/merkle-worker";
 
 const app = express();
 
@@ -23,6 +24,8 @@ app.use("/api/admin", adminRoutes); // ← جديد
 app.use("/api/auth", authRoutes);
 
 initCronJobs();
+
+cronRebuild();
 
 // Health Check
 app.get("/health", (req, res) => {

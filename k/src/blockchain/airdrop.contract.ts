@@ -14,7 +14,14 @@ export const airdropContractWrite = wallet
   ? new ethers.Contract(config.airdrop, AirdropABI, wallet)
   : null;
 
-// Helper functions
+/**
+ * Default airdrop window
+ */
+export const AIRDROP_DURATION_DAYS = 10;
+
+/**
+ * Read current airdrop state from contract
+ */
 export const getAirdropState = async () => {
   const [
     merkleRoot,
@@ -45,18 +52,45 @@ export const getAirdropState = async () => {
   };
 };
 
-export const hasUserClaimed = async (address: string): Promise<boolean> => {
+/**
+ * Check if user already claimed
+ */
+export const hasUserClaimed = async (
+  address: string
+): Promise<boolean> => {
   return await airdropContractRead.claimed(address);
 };
 
 /**
- * Set Merkle root on contract (admin only)
+ * Push Merkle root to contract
  */
-export const setMerkleRoot = async (root: string): Promise<ethers.TransactionResponse> => {
+export const setMerkleRoot = async (
+  root: string,
+  totalAmountWei: string
+): Promise<ethers.TransactionResponse> => {
+
   if (!airdropContractWrite) {
-    throw new Error("Airdrop contract write instance not available");
+    throw new Error(
+      "Airdrop contract write instance not available"
+    );
   }
 
-  const tx = await airdropContractWrite.setMerkleRoot(root);
+  const now =
+    Math.floor(Date.now() / 1000);
+
+  const start =
+    now + 60;
+
+  const end =
+    start + (9 * 24 * 60 * 60);
+
+  const tx =
+    await airdropContractWrite.setMerkleRoot(
+      root,
+      start,
+      end,
+      totalAmountWei
+    );
+
   return tx;
 };

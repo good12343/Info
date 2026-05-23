@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { getAirdropEligibility, getAirdropStats } from "../services/airdrop.service";
 import { validateClaim, recordClaim, getClaimStatus } from "../services/claim.service";
+import { prisma } from "../db/prisma";
 
 /**
  * 🪂 Airdrop Controller (Refactored)
@@ -88,5 +89,48 @@ export const getClaimStatusHandler = async (req: Request, res: Response) => {
     res.json(result);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
+  }
+};
+
+  export const getProofHandler = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const wallet =
+      String(req.query.wallet || "").toLowerCase();
+
+    if (!wallet) {
+      return res.status(400).json({
+        error: "Wallet is required",
+      });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { wallet },
+      select: {
+        wallet: true,
+        merkleProof: true,
+        airdropAllocatedWei: true,
+        merkleLeaf: true,
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        error: "User not found",
+      });
+    }
+
+    return res.json({
+      wallet: user.wallet,
+      amount: user.airdropAllocatedWei,
+      proof: user.merkleProof || [],
+      leaf: user.merkleLeaf,
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      error: error.message,
+    });
   }
 };

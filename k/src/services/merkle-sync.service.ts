@@ -1,8 +1,15 @@
 import { prisma } from "../db/prisma";
 import { buildMerkleTree } from "../merkle/tree.service";
 import { generateAllProofs } from "../merkle/proof.service";
-import { airdropContractWrite, airdropContractRead } from "../blockchain/airdrop.contract";
+import {
+    airdropContractRead,
+      airdropContractWrite,
+        setMerkleRoot,
+        } from "../blockchain/airdrop.contract";
 import { getEligibleUsers } from "./allocation.service";
+import {
+  wallet,
+} from "../blockchain/provider";
 
 const CHAIN_ID = 11155111;
 
@@ -13,9 +20,6 @@ const CHAIN_ID = 11155111;
  * - Generating all proofs
  * - Pushing root to smart contract
  * - Syncing eligibility state
- * 
- * Called by: Merkle Worker (batch process)
- * NOT called by: Task Worker or Reward Service
  */
 
 export interface MerkleSyncResult {
@@ -28,8 +32,7 @@ export interface MerkleSyncResult {
 }
 
 /**
- * Build Merkle tree from all eligible users
- * Returns tree data without DB writes
+ * Build full Merkle tree
  */
 export const buildFullMerkleTree = async () => {
   const eligibleUsers = await getEligibleUsers();
@@ -44,7 +47,10 @@ export const buildFullMerkleTree = async () => {
   }));
 
   const treeResult = buildMerkleTree(entries, CHAIN_ID);
-  if (!treeResult) return null;
+
+  if (!treeResult) {
+    return null;
+  }
 
   return {
     ...treeResult,
@@ -54,8 +60,7 @@ export const buildFullMerkleTree = async () => {
 };
 
 /**
- * Generate and save all proofs to database
- * Called during batch rebuild
+ * Save all proofs to DB
  */
 export const saveAllProofs = async (
   entries: { wallet: string; amount: string }[],
@@ -63,8 +68,8 @@ export const saveAllProofs = async (
 ) => {
   const proofs = generateAllProofs(entries, CHAIN_ID);
 
-  // Batch update users with their proofs
   const updates = [];
+
   for (const [wallet, proofData] of proofs.entries()) {
     updates.push(
       prisma.user.update({
@@ -84,24 +89,48 @@ export const saveAllProofs = async (
 };
 
 /**
- * Push Merkle root to smart contract
- * Returns transaction hash
+ * Push Merkle root to contract
  */
 export const pushMerkleRootToContract = async (
-  root: string
+  root: string,
+  totalAmountWei: string
 ): Promise<string> => {
-  if (!airdropContractWrite) {
-    throw new Error("Airdrop contract write instance not available");
-  }
-
-  // Check if root is already set
   const currentRoot = await airdropContractRead.merkleRoot();
+
   if (currentRoot.toLowerCase() === root.toLowerCase()) {
     throw new Error("Merkle root already set to this value");
   }
 
-  // Send transaction
-  const tx = await airdropContractWrite.setMerkleRoot(root);
+const govRole =
+  await airdropContractRead.GOVERNANCE_ROLE();
+
+const adminRole =
+  await airdropContractRead.DEFAULT_ADMIN_ROLE();
+
+const signer =
+  wallet?.address;
+
+const isGov =
+  await airdropContractRead.hasRole(
+    govRole,
+    signer
+  );
+
+const isAdmin =
+  await airdropContractRead.hasRole(
+    adminRole,
+    signer
+  );
+
+console.log("Signer:", signer);
+console.log("Is GOV:", isGov);
+console.log("Is ADMIN:", isAdmin);
+
+  const tx = await setMerkleRoot(
+    root,
+    totalAmountWei
+  );
+
   const receipt = await tx.wait();
 
   if (!receipt || receipt.status !== 1) {
@@ -112,127 +141,146 @@ export const pushMerkleRootToContract = async (
 };
 
 /**
- * Full sync: Build tree → Save proofs → Push root
- * This is the main batch operation
+ * Full sync process
  */
-export const syncMerkleDistribution = async (): Promise<MerkleSyncResult> => {
-  try {
-    // Step 1: Build tree
-    const treeData = await buildFullMerkleTree();
-    
-    if (!treeData) {
+export const syncMerkleDistribution =
+  async (): Promise<MerkleSyncResult> => {
+    try {
+      // Step 1: Build tree
+      const treeData = await buildFullMerkleTree();
+
+      if (!treeData) {
+        return {
+          success: false,
+          root: "0x0",
+          eligibleCount: 0,
+          totalAmountWei: "0",
+          error: "No eligible users found",
+        };
+      }
+
+      const {
+        root,
+        entries,
+        eligibleCount,
+      } = treeData;
+
+      // Step 2: Calculate total amount
+      const totalAmountWei = entries
+        .reduce(
+          (sum, e) => sum + BigInt(e.amount),
+          BigInt(0)
+        )
+        .toString();
+
+      // Step 3: Save proofs
+      await saveAllProofs(entries, root);
+
+      // Step 4: Push root to contract
+      let txHash: string | undefined;
+
+      try {
+        txHash = await pushMerkleRootToContract(
+          root,
+          totalAmountWei
+        );
+      } catch (contractError: any) {
+        if (
+          contractError.message.includes(
+            "already set"
+          )
+        ) {
+          txHash = "already_set";
+        } else {
+          throw contractError;
+        }
+      }
+
+      // Step 5: Update state
+      await prisma.airdropState.upsert({
+        where: { id: "1" },
+        update: {
+          merkleRoot: root,
+          totalEligible: eligibleCount,
+          totalAmountWei,
+          lastSyncedAt: new Date(),
+          syncTxHash: txHash,
+          status: "SYNCED",
+          errorMessage: null,
+        },
+        create: {
+          id: "1",
+          merkleRoot: root,
+          totalEligible: eligibleCount,
+          totalAmountWei,
+          lastSyncedAt: new Date(),
+          syncTxHash: txHash,
+          status: "SYNCED",
+        },
+      });
+
+      return {
+        success: true,
+        root,
+        txHash,
+        eligibleCount,
+        totalAmountWei,
+      };
+    } catch (error: any) {
+      await prisma.airdropState.upsert({
+        where: { id: "1" },
+        update: {
+          status: "FAILED",
+          errorMessage: error.message,
+          lastSyncedAt: new Date(),
+        },
+        create: {
+          id: "1",
+          status: "FAILED",
+          errorMessage: error.message,
+        },
+      });
+
       return {
         success: false,
         root: "0x0",
         eligibleCount: 0,
         totalAmountWei: "0",
-        error: "No eligible users found",
+        error: error.message,
       };
     }
-
-    const { root, entries, eligibleCount } = treeData;
-
-    // Calculate total amount
-    const totalAmountWei = entries
-      .reduce((sum, e) => sum + BigInt(e.amount), BigInt(0))
-      .toString();
-
-    // Step 2: Save proofs to DB
-    await saveAllProofs(entries, root);
-
-    // Step 3: Push root to contract
-    let txHash: string | undefined;
-    try {
-      txHash = await pushMerkleRootToContract(root);
-    } catch (contractError: any) {
-      // If root is same, it's not a real error
-      if (contractError.message.includes("already set")) {
-        txHash = "already_set";
-      } else {
-        throw contractError;
-      }
-    }
-
-    // Step 4: Update AirdropState
-    await prisma.airdropState.upsert({
-      where: { id: "1" }, // Singleton pattern
-      update: {
-        merkleRoot: root,
-        totalEligible: eligibleCount,
-        totalAmountWei,
-        lastSyncedAt: new Date(),
-        syncTxHash: txHash,
-        status: "SYNCED",
-        errorMessage: null,
-      },
-      create: {
-        id: "1",
-        merkleRoot: root,
-        totalEligible: eligibleCount,
-        totalAmountWei,
-        lastSyncedAt: new Date(),
-        syncTxHash: txHash,
-        status: "SYNCED",
-      },
-    });
-
-    return {
-      success: true,
-      root,
-      txHash,
-      eligibleCount,
-      totalAmountWei,
-    };
-  } catch (error: any) {
-    // Update state with error
-    await prisma.airdropState.upsert({
-      where: { id: "1" },
-      update: {
-        status: "FAILED",
-        errorMessage: error.message,
-        lastSyncedAt: new Date(),
-      },
-      create: {
-        id: "1",
-        status: "FAILED",
-        errorMessage: error.message,
-      },
-    });
-
-    return {
-      success: false,
-      root: "0x0",
-      eligibleCount: 0,
-      totalAmountWei: "0",
-      error: error.message,
-    };
-  }
-};
+  };
 
 /**
- * Get current Merkle root from contract
+ * Get contract Merkle root
  */
-export const getContractMerkleRoot = async (): Promise<string> => {
-  return await airdropContractRead.merkleRoot();
-};
+export const getContractMerkleRoot =
+  async (): Promise<string> => {
+    return await airdropContractRead.merkleRoot();
+  };
 
 /**
- * Get current sync status
+ * Get sync status
  */
 export const getSyncStatus = async () => {
-  const state = await prisma.airdropState.findUnique({
-    where: { id: "1" },
-  });
+  const state =
+    await prisma.airdropState.findUnique({
+      where: { id: "1" },
+    });
 
-  const contractRoot = await getContractMerkleRoot();
+  const contractRoot =
+    await getContractMerkleRoot();
 
   return {
     dbRoot: state?.merkleRoot || "0x0",
     contractRoot,
-    inSync: state?.merkleRoot?.toLowerCase() === contractRoot.toLowerCase(),
+    inSync:
+      state?.merkleRoot?.toLowerCase() ===
+      contractRoot.toLowerCase(),
     lastSyncedAt: state?.lastSyncedAt,
     totalEligible: state?.totalEligible || 0,
-    totalAmountWei: state?.totalAmountWei || "0",
+    totalAmountWei:
+      state?.totalAmountWei || "0",
     status: state?.status || "PENDING",
     errorMessage: state?.errorMessage,
   };
