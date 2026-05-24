@@ -128,7 +128,6 @@ console.log("Is ADMIN:", isAdmin);
 
   const tx = await setMerkleRoot(
     root,
-    totalAmountWei
   );
 
   const receipt = await tx.wait();

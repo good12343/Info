@@ -66,7 +66,6 @@ export const hasUserClaimed = async (
  */
 export const setMerkleRoot = async (
   root: string,
-  totalAmountWei: string
 ): Promise<ethers.TransactionResponse> => {
 
   if (!airdropContractWrite) {
