@@ -66,24 +66,32 @@ export const saveAllProofs = async (
   entries: { wallet: string; amount: string }[],
   root: string
 ) => {
-  const proofs = generateAllProofs(entries, CHAIN_ID);
+  const proofs =
+    generateAllProofs(entries, CHAIN_ID);
 
-  const updates = [];
+  const operations = [];
 
   for (const [wallet, proofData] of proofs.entries()) {
-    updates.push(
-      prisma.user.update({
-        where: { wallet },
-        data: {
+    operations.push(
+      prisma.userMerkleProof.upsert({
+        where: {
+          wallet,
+        },
+        update: {
           merkleProof: proofData.proof,
           merkleLeaf: proofData.leaf,
           chainId: CHAIN_ID,
+        },
+        create: {
+          wallet,
+          merkleProof: proofData.proof,
+          merkleLeaf: proofData.leaf,
         },
       })
     );
   }
 
-  await prisma.$transaction(updates);
+  await prisma.$transaction(operations);
 
   return proofs.size;
 };

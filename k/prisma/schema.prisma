@@ -94,11 +94,6 @@ model User {
   tokensClaimedAt   DateTime?
   tokensClaimTxHash String?
   
-  // 🌳 Merkle Tree (Proofs stored for frontend claim)
-  merkleProof       String[]
-  merkleLeaf        String?
-  chainId           Int          @default(11155111)
-  
   // 🛡️ Security & Meta
   isBlocked         Boolean      @default(false)
   riskScore         Float        @default(0)
@@ -127,7 +122,7 @@ model User {
 //////////////////////////////////////////////////////
 
 model AirdropState {
-  id              String            @id @default(uuid())
+  id              String            @id @default("main")
   merkleRoot      String            @default("0x0")
   totalEligible   Int               @default(0)
   totalAmountWei  String            @default("0")
@@ -345,4 +340,21 @@ model DailyStats {
   claimedTokens  Int
   
   createdAt     DateTime @default(now())
+}
+
+///////////////////////////////////////////////////////
+//  🌳 Merkle Tree (Proofs stored for frontend claim)
+///////////////////////////////////////////////////////
+
+model UserMerkleProof {
+  wallet         String   @id 
+
+  merkleProof  String[]
+  merkleLeaf   String
+
+  chainId      Int      @default(11155111)
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
 }

@@ -1,5 +1,5 @@
 import { buildMerkleTree, MerkleTreeResult } from "../merkle/tree.service";
-import { generateProof, generateAllProofs, ProofResult } from "../merkle/proof.service";
+import { ProofResult } from "../merkle/proof.service";
 import { prisma } from "../db/prisma";
 
 const CHAIN_ID = 11155111; // Sepolia
@@ -26,17 +26,17 @@ export const buildTreeFromDb = async (): Promise<MerkleTreeResult | null> => {
  * Get proof for a specific wallet from database
  */
 export const getProofFromDb = async (wallet: string): Promise<ProofResult | null> => {
-  const user = await prisma.user.findUnique({
+  const proof = await prisma.userMerkleProof.findUnique({
     where: { wallet: wallet.toLowerCase() },
   });
 
-  if (!user || !user.merkleProof || user.merkleProof.length === 0) {
+  if (!proof || !proof.merkleProof || proof.merkleProof.length === 0) {
     return null;
   }
 
   return {
-    leaf: user.merkleLeaf || "",
-    proof: user.merkleProof,
+    leaf: proof.merkleLeaf,
+    proof: proof.merkleProof,
     root: "", // Root should be fetched from contract or state
   };
 };

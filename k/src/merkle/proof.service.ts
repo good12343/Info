@@ -1,4 +1,3 @@
-import { MerkleTree } from "merkletreejs";
 import { hashLeaf } from "./hash.service";
 import { buildMerkleTree, AirdropEntry } from "./tree.service";
 

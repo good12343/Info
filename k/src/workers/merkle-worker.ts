@@ -138,39 +138,64 @@ export const getJobHistory = async (limit: number = 10) => {
  * Returns true if points have changed since last sync
  */
 export const isRebuildNeeded = async (): Promise<boolean> => {
-  const [lastJob, pendingChanges] = await Promise.all([
-    prisma.merkleJob.findFirst({
-      where: { status: "COMPLETED" },
-      orderBy: { completedAt: "desc" },
-    }),
-    // Check if any user has points but no allocation
-    prisma.user.count({
+  const lastJob = await prisma.merkleJob.findFirst({
+    where: {
+      status: "COMPLETED",
+    },
+    orderBy: {
+      completedAt: "desc",
+    },
+  });
+
+  // أول تشغيل
+  if (!lastJob?.completedAt) {
+    return true;
+  }
+
+  // 1️⃣ مستخدمين لديهم نقاط لكن بدون allocation
+  const pendingAllocations =
+    await prisma.user.count({
       where: {
         airdropPoints: { gt: 0 },
-        OR:[
-          { airdropAllocatedWei: "0"},
-          
-        ],
-      },
-    }),
-  ]);
-
-  if (pendingChanges > 0) return true;
-
-  // Check if there are new verified tasks since last sync
-  if (lastJob?.completedAt) {
-    const newTasks = await prisma.userTask.count({
-      where: {
-        status: "VERIFIED",
-        rewardGiven: true,
-        completedAt: { gt: lastJob.completedAt },
+        airdropAllocatedWei: "0",
       },
     });
 
-    return newTasks > 0;
+  if (pendingAllocations > 0) {
+    return true;
   }
 
-  return true;
+  // 2️⃣ مهام جديدة تم التحقق منها
+  const newVerifiedTasks =
+    await prisma.userTask.count({
+      where: {
+        status: "VERIFIED",
+        rewardGiven: true,
+        completedAt: {
+          gt: lastJob.completedAt,
+        },
+      },
+    });
+
+  if (newVerifiedTasks > 0) {
+    return true;
+  }
+
+  // 3️⃣ أي مستخدم تم تحديثه بعد آخر rebuild
+  const changedUsers =
+    await prisma.user.count({
+      where: {
+        updatedAt: {
+          gt: lastJob.completedAt,
+        },
+      },
+    });
+
+  if (changedUsers > 0) {
+    return true;
+  }
+
+  return false;
 };
 
 /**

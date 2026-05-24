@@ -5,16 +5,29 @@ export type UserDomain = {
   tokensAllocated: string;     // بالـ FOR (للعرض)
   tokensAllocatedWei: string;  // ← بالـ wei (للعقد)
   tokensBought: string;        // بالـ FOR
-  tokensBoughtWei: string;     // ← بالـ wei
-  vestedTokens: string;        // بالـ FOR
-  claimableTokens: string;     // بالـ FOR
+  tokensBoughtWei: string;     // ← بالـ wei   // بالـ FOR
   category: string;            // AIRDROP_ONLY, AIRDROP_BUYER, BUYER_ONLY, NONE
   tier: string;               // BRONZE, SILVER, GOLD, PLATINUM
-  chainId: number;             // 11155111 for Sepolia
-  merkleProof: string[];       // ← Merkle Proof
-  merkleLeaf: string | null;   // ← Merkle Leaf
   hasClaimedAirdrop: boolean;
   hasClaimedTokens: boolean;
+};
+
+export type UserMerkleData = {
+  wallet: string;
+
+  merkleProof: string[];
+
+  chainId: number;
+
+  merkleLeaf: string | null;
+
+  merkleRoot: string;
+};
+
+export type UserVestingView = {
+  vestedTokens: string;
+
+  claimableTokens: string;
 };
 
 /**
@@ -47,22 +60,33 @@ export const calculateTotalTokens = (user: UserDomain): string => {
 /**
  * 📊 Get user summary
  */
-export const getUserSummary = (user: UserDomain) => {
-  const totalTokens = calculateTotalTokens(user);
-  const power = calculateUserPower(user);
+export const getUserSummary = (
+  user: UserDomain,
+  vesting: UserVestingView,
+  merkle: UserMerkleData
+) => {
+  const totalTokens =
+    calculateTotalTokens(user);
+
+  const power =
+    calculateUserPower(user);
 
   return {
     wallet: user.wallet,
+
     category: user.category,
+
     tier: user.tier,
+
     power,
+
     totalTokens,
     airdrop: {
       points: user.airdropPoints,
       tokens: user.tokensAllocated,
       tokensWei: user.tokensAllocatedWei,
-      merkleProof: user.merkleProof,
-      merkleLeaf: user.merkleLeaf,
+      merkleProof: merkle.merkleProof,
+      merkleLeaf: merkle.merkleLeaf,
       claimed: user.hasClaimedAirdrop,
     },
     purchase: {
@@ -71,9 +95,9 @@ export const getUserSummary = (user: UserDomain) => {
       tokensWei: user.tokensBoughtWei,
     },
     vesting: {
-      vested: user.vestedTokens,
-      claimable: user.claimableTokens,
+      vested: vesting.vestedTokens,
+      claimable:vesting.claimableTokens,
     },
-    chainId: user.chainId,
+    chainId: merkle.chainId,
   };
 };

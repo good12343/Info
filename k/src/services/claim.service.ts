@@ -24,84 +24,148 @@ export interface ClaimValidationResult {
 
 /**
  * Validate a claim before processing
- * Checks: eligibility, proof, already claimed
+ * Checks: eligibility, proof
  */
-export const validateClaim = async (
+ export const validateClaim = async (
   wallet: string
 ): Promise<ClaimValidationResult> => {
-  const normalizedWallet = wallet.toLowerCase();
 
-  // 1. Check user exists and is eligible
-  const user = await prisma.user.findUnique({
-    where: { wallet: normalizedWallet },
-    select: {
-      airdropAllocatedWei: true,
-      merkleProof: true,
-      merkleLeaf: true,
-      hasClaimedAirdrop: true,
-      isBlocked: true,
-    },
-  });
+  const normalizedWallet =
+    wallet.toLowerCase();
+
+  // ================= USER =================
+  const user =
+    await prisma.user.findUnique({
+      where: {
+        wallet: normalizedWallet,
+      },
+      select: {
+        airdropAllocatedWei: true,
+        hasClaimedAirdrop: true,
+        isBlocked: true,
+      },
+    });
 
   if (!user) {
-    return { valid: false, reason: "User not found" };
+    return {
+      valid: false,
+      reason: "User not found",
+    };
   }
 
   if (user.isBlocked) {
-    return { valid: false, reason: "User is blocked" };
+    return {
+      valid: false,
+      reason: "User is blocked",
+    };
   }
 
   if (user.hasClaimedAirdrop) {
-    return { valid: false, reason: "Airdrop already claimed" };
+    return {
+      valid: false,
+      reason: "Airdrop already claimed",
+    };
   }
 
-  if (!user.airdropAllocatedWei || user.airdropAllocatedWei === "0") {
-    return { valid: false, reason: "No allocation found" };
+  if (
+    !user.airdropAllocatedWei ||
+    user.airdropAllocatedWei === "0"
+  ) {
+    return {
+      valid: false,
+      reason: "No allocation found",
+    };
   }
 
-  if (!user.merkleProof || user.merkleProof.length === 0) {
-    return { valid: false, reason: "Merkle proof not generated yet" };
+  // ================= MERKLE =================
+  const merkleData =
+    await prisma.userMerkleProof.findUnique({
+      where: {
+        wallet: normalizedWallet,
+      },
+    });
+
+  if (!merkleData) {
+    return {
+      valid: false,
+      reason: "Merkle data not found",
+    };
   }
 
-  // 2. Verify proof against current root
-  const syncStatus = await getSyncStatus();
-  
-  if (syncStatus.dbRoot === "0x0") {
-    return { valid: false, reason: "Merkle root not set" };
+  if (
+    !merkleData.merkleProof ||
+    merkleData.merkleProof.length === 0
+  ) {
+    return {
+      valid: false,
+      reason:
+        "Merkle proof not generated yet",
+    };
   }
 
-  if (!syncStatus.inSync) {
-    return { valid: false, reason: "Merkle root out of sync" };
+  // ================= CONTRACT =================
+  const syncStatus =
+    await getSyncStatus();
+
+  if (
+    syncStatus.contractRoot ===
+    "0x0000000000000000000000000000000000000000000000000000000000000000"
+  ) {
+    return {
+      valid: false,
+      reason: "Merkle root not set",
+    };
   }
 
+  // ================= VERIFY =================
   const isProofValid = verifyProof(
-  syncStatus.contractRoot,
-  user.merkleLeaf || "",
-  user.merkleProof
+    syncStatus.contractRoot,
+    merkleData.merkleLeaf,
+    merkleData.merkleProof
   );
 
   if (!isProofValid) {
-    return { valid: false, reason: "Invalid Merkle proof" };
+    return {
+      valid: false,
+      reason: "Invalid Merkle proof",
+    };
   }
 
-  // 3. Double-check on-chain
-  const hasClaimed = await airdropContractRead.claimed(normalizedWallet);
+  // ================= ON-CHAIN =================
+  const hasClaimed =
+    await airdropContractRead.claimed(
+      normalizedWallet
+    );
+
   if (hasClaimed) {
-    // Update local state to match chain
+
     await prisma.user.update({
-      where: { wallet: normalizedWallet },
-      data: { hasClaimedAirdrop: true },
+      where: {
+        wallet: normalizedWallet,
+      },
+      data: {
+        hasClaimedAirdrop: true,
+      },
     });
-    return { valid: false, reason: "Already claimed on-chain" };
+
+    return {
+      valid: false,
+      reason: "Already claimed on-chain",
+    };
   }
 
   return {
     valid: true,
-    amountWei: user.airdropAllocatedWei,
-    proof: user.merkleProof,
+
+    amountWei:
+      user.airdropAllocatedWei,
+
+    proof:
+      merkleData.merkleProof,
   };
 };
-
+ 
+    
 /**
  * Record a claim after successful on-chain transaction
  */
@@ -181,7 +245,13 @@ export const getClaimStatus = async (wallet: string) => {
       hasClaimedAirdrop: true,
       airdropClaimedAt: true,
       airdropTxHash: true,
-      merkleProof: true,
+    },
+  });
+
+  const merkleData =
+  await prisma.userMerkleProof.findUnique({
+    where: {
+      wallet: normalizedWallet,
     },
   });
 
@@ -198,7 +268,7 @@ export const getClaimStatus = async (wallet: string) => {
     eligible: user.airdropAllocatedWei !== "0",
     claimed: user.hasClaimedAirdrop,
     amountWei: user.airdropAllocatedWei,
-    proof: user.merkleProof,
+    proof: merkleData?.merkleProof || [],
     claimedAt: user.airdropClaimedAt,
     txHash: user.airdropTxHash,
   };
