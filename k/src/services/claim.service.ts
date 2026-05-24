@@ -75,9 +75,9 @@ export const validateClaim = async (
   }
 
   const isProofValid = verifyProof(
-    syncStatus.dbRoot,
-    user.merkleLeaf || "",
-    user.merkleProof
+  syncStatus.contractRoot,
+  user.merkleLeaf || "",
+  user.merkleProof
   );
 
   if (!isProofValid) {
