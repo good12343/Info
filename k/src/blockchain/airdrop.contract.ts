@@ -75,21 +75,16 @@ export const setMerkleRoot = async (
     );
   }
 
-  const now =
-    Math.floor(Date.now() / 1000);
-
-  const start =
-    now + 60;
-
-  const end =
-    start + (9 * 24 * 60 * 60);
+  // ✅ استخدم القيم الحالية من العقد
+  const currentState =
+    await getAirdropState();
 
   const tx =
     await airdropContractWrite.setMerkleRoot(
       root,
-      start,
-      end,
-      totalAmountWei
+      currentState.claimStart,
+      currentState.claimEnd,
+      currentState.maxAllocation
     );
 
   return tx;
