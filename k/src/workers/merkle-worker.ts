@@ -205,5 +205,15 @@ export const isRebuildNeeded = async (): Promise<boolean> => {
 export const cronRebuild = async () => {
   console.log("[MerkleWorker] 🕐 Cron job started");
 
+  const needed = await isRebuildNeeded();
+
+  if (!needed) {
+    console.log("[MerkleWorker] ⏭️ No rebuild needed");
+
+    return {
+      skipped: true,
+    };
+  }
+
   return await rebuildAndSync();
 };

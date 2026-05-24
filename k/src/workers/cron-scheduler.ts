@@ -28,7 +28,7 @@ export const initCronJobs = () => {
   // Merkle rebuild: Every hour
   // Change to '0 */6 * * *' for every 6 hours in production
   merkleCronJob = new CronJob(
-    "* * * * *", // Every hour at minute 0
+    "*/1 * * * * *", // Every hour at minute 0
     async () => {
       console.log("[Cron] ⏰ Hourly Merkle rebuild triggered");
       try {
