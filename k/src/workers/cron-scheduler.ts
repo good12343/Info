@@ -34,7 +34,7 @@ export const initCronJobs = () => {
       try {
         const result = await cronRebuild();
         if ("skipped" in result) {
-          console.log(`[Cron] ⏭️ ${result.reason}`);
+          console.log("[Cron] ⏭️ No changes detected");
         } else {
           console.log(`[Cron] ✅ Rebuild completed: ${result.success}`);
         }
